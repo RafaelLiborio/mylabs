@@ -72,12 +72,17 @@ function ProtectedRoute({
   return <>{children}</>
 }
 
+const routerBasename =
+  typeof window !== 'undefined' && window.location.pathname.startsWith('/mylabs')
+    ? '/mylabs'
+    : '/'
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <BrowserRouter>
+          <BrowserRouter basename={routerBasename}>
             <Suspense fallback={<FullPageLoader />}>
               <Routes>
                 <Route path="/" element={<RoleLandingRedirect />} />
