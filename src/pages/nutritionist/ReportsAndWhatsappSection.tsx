@@ -21,6 +21,7 @@ import {
   isValidWhatsapp,
   sanitizeWhatsappDigits,
 } from '@/domain/whatsapp'
+import { BRAZIL_STATES, joinCityState, splitCityState } from '@/domain/brazilStates'
 import {
   AlertTriangle,
   CalendarClock,
@@ -68,6 +69,7 @@ export function ReportsAndWhatsappSection({
   const [savingSchedule, setSavingSchedule] = useState(false)
 
   // Nutritionist detailed profile & WhatsApp state
+  const initialCityState = splitCityState(profile?.city_state)
   const [nutriName, setNutriName] = useState(profile?.full_name || '')
   const [nutriWhatsapp, setNutriWhatsapp] = useState(profile?.whatsapp || '')
   const [nutriCrn, setNutriCrn] = useState(profile?.crn || '')
@@ -76,20 +78,23 @@ export function ReportsAndWhatsappSection({
     profile?.specialty || 'Nutrição Esportiva & Composição Corporal',
   )
   const [nutriClinic, setNutriClinic] = useState(profile?.clinic_name || '')
-  const [nutriCity, setNutriCity] = useState(profile?.city_state || '')
+  const [nutriCity, setNutriCity] = useState(initialCityState.city)
+  const [nutriUf, setNutriUf] = useState(initialCityState.uf)
   const [nutriBio, setNutriBio] = useState(profile?.bio || '')
   const [savingProfile, setSavingProfile] = useState(false)
   const [clientRequests, setClientRequests] = useState<any[]>([])
 
   useEffect(() => {
     if (profile) {
+      const parsed = splitCityState(profile.city_state)
       setNutriName(profile.full_name || '')
       setNutriWhatsapp(profile.whatsapp || '')
       setNutriCrn(profile.crn || '')
       setNutriCrnRegion(profile.crn_region || 'CRN-3 (SP, MS)')
       setNutriSpecialty(profile.specialty || 'Nutrição Esportiva & Composição Corporal')
       setNutriClinic(profile.clinic_name || '')
-      setNutriCity(profile.city_state || '')
+      setNutriCity(parsed.city)
+      setNutriUf(parsed.uf)
       setNutriBio(profile.bio || '')
     }
   }, [profile])
@@ -211,7 +216,7 @@ export function ReportsAndWhatsappSection({
           crn_region: nutriCrnRegion || null,
           specialty: nutriSpecialty || null,
           clinic_name: nutriClinic.trim() || null,
-          city_state: nutriCity.trim() || null,
+          city_state: joinCityState(nutriCity, nutriUf),
           bio: nutriBio.trim() || null,
         })
         .eq('id', profile.id)
@@ -700,12 +705,30 @@ export function ReportsAndWhatsappSection({
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label>Cidade / UF</Label>
-              <Input
-                value={nutriCity}
-                onChange={(e) => setNutriCity(e.target.value)}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+              <div className="sm:col-span-2 space-y-1">
+                <Label>Cidade</Label>
+                <Input
+                  placeholder="Ex: São Paulo"
+                  value={nutriCity}
+                  onChange={(e) => setNutriCity(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Estado (UF) *</Label>
+                <Select value={nutriUf} onValueChange={setNutriUf}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a UF" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {BRAZIL_STATES.map((st) => (
+                      <SelectItem key={st.uf} value={st.uf}>
+                        {st.uf} — {st.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-1">

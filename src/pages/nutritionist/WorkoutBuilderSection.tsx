@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { supabase, getSignedOrPublicUrl } from '@/lib/supabase'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { supabase, getSignedOrPublicUrl, translateErrorPt } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ExercisePreview } from '@/components/shared/ExercisePreview'
 import { MediaAttachmentPicker, type CapturedMediaFile } from '@/components/shared/MediaAttachmentPicker'
@@ -42,18 +42,18 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
   // Week & Weekday navigation
   const [selectedWeek, setSelectedWeek] = useState<number>(1)
   const [selectedWeekday, setSelectedWeekday] = useState<number>(1)
+  const lastDayKeyRef = useRef<string>('')
 
   // Day metadata form
   const [dayTitle, setDayTitle] = useState('Treino A — Peitoral, Ombros & Tríceps')
   const [dayMuscleGroups, setDayMuscleGroups] = useState<string[]>(['peito', 'ombros', 'triceps'])
 
-  // Exercise filter & prescription form
+  // Exercise filter & prescription form (NO load_kg field, and preserves muscleFilter on save!)
   const [muscleFilter, setMuscleFilter] = useState<string>('peito')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>('')
   const [sets, setSets] = useState<number>(4)
   const [reps, setReps] = useState<string>('10-12')
-  const [loadKg, setLoadKg] = useState<number>(25)
   const [exNotes, setExNotes] = useState<string>('Execução controlada com ênfase na fase excêntrica.')
 
   // Create custom exercise with GIF in Portuguese
@@ -79,8 +79,7 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
         .limit(1),
     ])
 
-    const allEx = exCatalog || []
-    setExercises(allEx)
+    setExercises(exCatalog || [])
 
     let activeWp = wPlans?.[0] || null
     if (!activeWp && profile?.id) {
@@ -117,6 +116,7 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
   }, [clientId, clientName, profile?.id])
 
   useEffect(() => {
+    lastDayKeyRef.current = ''
     loadWorkoutData()
   }, [loadWorkoutData])
 
@@ -125,18 +125,25 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
     [days, selectedWeek, selectedWeekday],
   )
 
+  // Sync dayTitle and dayMuscleGroups ONLY when the user switches (clientId, selectedWeek, selectedWeekday)
+  // NEVER reset muscleFilter when adding an exercise to the current day!
   useEffect(() => {
+    const key = `${clientId}:${selectedWeek}:${selectedWeekday}:${activeDay?.id || 'empty'}`
+    if (lastDayKeyRef.current === key) return
+    const switchedDayOrWeek = !lastDayKeyRef.current.startsWith(`${clientId}:${selectedWeek}:${selectedWeekday}:`)
+    lastDayKeyRef.current = key
+
     if (activeDay) {
       setDayTitle(activeDay.title)
       setDayMuscleGroups(activeDay.muscle_groups || [])
-      if (activeDay.muscle_groups?.length > 0) {
+      if (switchedDayOrWeek && activeDay.muscle_groups?.length > 0) {
         setMuscleFilter(activeDay.muscle_groups[0])
       }
     } else {
       const wdName = WEEKDAYS.find((w) => w.id === selectedWeekday)?.full || 'Dia'
       setDayTitle(`Treino de ${wdName} (Semana ${selectedWeek})`)
     }
-  }, [activeDay, selectedWeekday, selectedWeek])
+  }, [clientId, activeDay, selectedWeekday, selectedWeek])
 
   const filteredCatalog = useMemo(() => {
     return exercises.filter((ex) => {
@@ -174,10 +181,20 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
   }
 
   const ensureActiveDayRow = async (): Promise<string | null> => {
+    const currentMuscle = selectedExerciseObj?.muscle_group
+    const updatedGroups =
+      currentMuscle && !dayMuscleGroups.includes(currentMuscle)
+        ? [...dayMuscleGroups, currentMuscle]
+        : dayMuscleGroups
+
+    if (updatedGroups !== dayMuscleGroups) {
+      setDayMuscleGroups(updatedGroups)
+    }
+
     if (activeDay) {
       await supabase
         .from('workout_days')
-        .update({ title: dayTitle, muscle_groups: dayMuscleGroups })
+        .update({ title: dayTitle, muscle_groups: updatedGroups })
         .eq('id', activeDay.id)
       return activeDay.id
     }
@@ -189,12 +206,12 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
         week: selectedWeek,
         weekday: selectedWeekday,
         title: dayTitle.trim() || `Treino Semana ${selectedWeek}`,
-        muscle_groups: dayMuscleGroups,
+        muscle_groups: updatedGroups,
       })
       .select('id')
       .single()
     if (error || !data) {
-      toast.error(error?.message || 'Erro ao criar dia de treino.')
+      toast.error(translateErrorPt(error))
       return null
     }
     return data.id
@@ -205,6 +222,9 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
       toast.error('Selecione um exercício do catálogo.')
       return
     }
+    const preservedFilter = muscleFilter
+    const preservedExerciseId = selectedExerciseObj.id
+
     const dayId = await ensureActiveDayRow()
     if (!dayId) return
 
@@ -216,22 +236,27 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
       sets: Math.max(1, sets),
       reps: reps.trim() || '10',
       rest_sec: 60,
-      load_kg: loadKg,
+      load_kg: null,
       notes: exNotes.trim() || null,
     })
 
     if (error) {
-      toast.error(error.message)
+      toast.error(translateErrorPt(error))
       return
     }
     toast.success(`"${selectedExerciseObj.name_pt}" prescrito para Semana ${selectedWeek}!`)
-    loadWorkoutData()
+    await loadWorkoutData()
+    // Explicitly preserve active filter and selected exercise
+    setMuscleFilter(preservedFilter)
+    setSelectedExerciseId(preservedExerciseId)
   }
 
   const handleRemovePrescribedExercise = async (weId: string) => {
+    const preservedFilter = muscleFilter
     await supabase.from('workout_exercises').delete().eq('id', weId)
     toast.info('Exercício removido do dia.')
-    loadWorkoutData()
+    await loadWorkoutData()
+    setMuscleFilter(preservedFilter)
   }
 
   const handleCopyWeekToNext = async () => {
@@ -244,7 +269,6 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
     }
 
     for (const sd of sourceDays) {
-      // Remove existing day on target week if present
       await supabase
         .from('workout_days')
         .delete()
@@ -324,7 +348,7 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
       .single()
 
     if (error || !data) {
-      toast.error(error?.message || 'Erro ao cadastrar exercício.')
+      toast.error(translateErrorPt(error))
       return
     }
     toast.success(`Exercício "${customExName}" cadastrado no catálogo em português!`)
@@ -369,7 +393,10 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => setCustomExOpen(true)}
+              onClick={() => {
+                setCustomExMuscle((muscleFilter !== 'all' ? muscleFilter : 'peito') as MuscleGroupId)
+                setCustomExOpen(true)
+              }}
               className="gap-1.5 text-xs"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -475,212 +502,233 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
         </CardContent>
       </Card>
 
-      {/* 2. Construtor: Catálogo de Exercícios com GIF PT-BR (Esquerda) + Ficha do Dia (Direita) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Coluna Esquerda: Catálogo de Exercícios por Agrupamento Muscular com GIF em Português */}
-        <Card className="lg:col-span-5 rounded-2xl">
-          <CardHeader className="pb-3">
-            <CardTitle className="font-display text-base flex items-center gap-2">
-              <Dumbbell className="w-4 h-4 text-indigo-600" />
-              <span>Prescrever Exercício por Agrupamento</span>
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Selecione o grupamento muscular específico e visualize o GIF animado em português
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="space-y-3.5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <Select value={muscleFilter} onValueChange={setMuscleFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Agrupamento muscular" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os Agrupamentos</SelectItem>
-                  {MUSCLE_GROUPS.map((mg) => (
-                    <SelectItem key={mg.id} value={mg.id}>
-                      {mg.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <div className="relative">
-                <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-3" />
-                <Input
-                  placeholder="Buscar exercício em PT-BR..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
-
-            {/* Lista de Exercícios com Mini-GIF (sem botões aninhados) */}
-            <div className="max-h-60 overflow-y-auto divide-y divide-border border border-border rounded-xl">
-              {filteredCatalog.map((ex) => {
-                const isSelected = selectedExerciseObj?.id === ex.id
-                return (
-                  <div
-                    key={ex.id}
-                    className={`p-2.5 flex items-center justify-between gap-2.5 text-xs transition ${
-                      isSelected ? 'bg-indigo-50/80 font-semibold' : 'hover:bg-muted/40'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <ExercisePreview
-                        namePt={ex.name_pt}
-                        muscleGroup={ex.muscle_group}
-                        secondaryMuscles={ex.secondary_muscles || []}
-                        equipment={ex.equipment}
-                        level={ex.level}
-                        instructionsPt={ex.instructions_pt || []}
-                        frameUrls={ex.frame_urls || []}
-                        gifUrl={ex.gif_url}
-                        compact
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setSelectedExerciseId(ex.id)}
-                        className="text-left flex-1 min-w-0 focus:outline-none"
-                      >
-                        <div className="font-bold text-foreground truncate">{ex.name_pt}</div>
-                        <div className="text-[11px] text-muted-foreground truncate">
-                          {MUSCLE_GROUP_LABEL[ex.muscle_group] || ex.muscle_group} • {ex.equipment}
-                        </div>
-                      </button>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={isSelected ? 'default' : 'outline'}
-                      onClick={() => setSelectedExerciseId(ex.id)}
-                      className={`h-7 px-2.5 text-[11px] shrink-0 ${
-                        isSelected ? 'bg-indigo-600 text-white' : ''
-                      }`}
-                    >
-                      {isSelected ? 'Ativo' : 'Selecionar'}
-                    </Button>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Preview do Exercício Selecionado + Parâmetros */}
-            {selectedExerciseObj && (
-              <div className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-3 space-y-3">
-                <div className="flex items-center gap-3">
-                  <ExercisePreview
-                    namePt={selectedExerciseObj.name_pt}
-                    muscleGroup={selectedExerciseObj.muscle_group}
-                    secondaryMuscles={selectedExerciseObj.secondary_muscles || []}
-                    equipment={selectedExerciseObj.equipment}
-                    level={selectedExerciseObj.level}
-                    instructionsPt={selectedExerciseObj.instructions_pt || []}
-                    frameUrls={selectedExerciseObj.frame_urls || []}
-                    gifUrl={selectedExerciseObj.gif_url}
-                    compact
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-indigo-950">{selectedExerciseObj.name_pt}</div>
-                    <p className="text-[11px] text-muted-foreground line-clamp-2">
-                      {selectedExerciseObj.instructions_pt?.[0] || 'Clique no GIF para ver o passo a passo completo.'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-[11px]">Séries</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={15}
-                      value={sets}
-                      onChange={(e) => setSets(Number(e.target.value))}
-                      className="bg-white h-8 font-bold"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px]">Repetições</Label>
-                    <Input
-                      value={reps}
-                      onChange={(e) => setReps(e.target.value)}
-                      className="bg-white h-8 font-bold"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px]">Carga Alvo (kg)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={500}
-                      value={loadKg}
-                      onChange={(e) => setLoadKg(Number(e.target.value))}
-                      className="bg-white h-8 font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-[11px]">Observação Biomecânica / Cadência</Label>
-                  <Input
-                    value={exNotes}
-                    onChange={(e) => setExNotes(e.target.value)}
-                    className="bg-white h-8 text-xs"
-                  />
-                </div>
-
-                <Button
-                  type="button"
-                  onClick={handlePrescribeExercise}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>
-                    Incluir na {WEEKDAYS.find((w) => w.id === selectedWeekday)?.full} (Semana {selectedWeek})
-                  </span>
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Coluna Direita: Exercícios Prescritos no Dia/Semana Selecionado */}
-        <Card className="lg:col-span-7 rounded-2xl">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+      {/* 2. TOPO (Largura Total): Prescrever Exercício por Agrupamento (em cima da Ficha do Dia para maior espaço!) */}
+      <Card className="rounded-2xl border-indigo-200/80 shadow-xs">
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <CardTitle className="font-display text-base flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-indigo-600" />
-                <span>
-                  Ficha do Dia: {WEEKDAYS.find((w) => w.id === selectedWeekday)?.full} (Semana {selectedWeek})
-                </span>
+                <Dumbbell className="w-4 h-4 text-indigo-600" />
+                <span>Prescrever Exercício por Agrupamento Muscular</span>
               </CardTitle>
               <CardDescription className="text-xs">
-                {activeDay?.title || dayTitle} • {activeDay?.workout_exercises?.length || 0} exercícios prescritos
+                Selecione o grupamento muscular específico, visualize o GIF animado em português e adicione à ficha abaixo (o filtro selecionado é mantido após adicionar).
               </CardDescription>
             </div>
-          </CardHeader>
+            <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">
+              Filtro ativo: {muscleFilter === 'all' ? 'Todos os Agrupamentos' : MUSCLE_GROUP_LABEL[muscleFilter] || muscleFilter}
+            </Badge>
+          </div>
+        </CardHeader>
 
-          <CardContent className="space-y-3">
-            {!activeDay || (activeDay.workout_exercises || []).length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border p-8 text-center space-y-2">
-                <Dumbbell className="w-8 h-8 text-muted-foreground mx-auto" />
-                <p className="text-sm font-semibold">Nenhum exercício prescrito para este dia</p>
-                <p className="text-xs text-muted-foreground">
-                  Selecione um exercício com GIF ao lado e clique em "Incluir" para montar o treino deste dia.
-                </p>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            {/* Esquerda do Card Superior: Filtros + Lista Espaçosa do Catálogo */}
+            <div className="lg:col-span-7 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <Select value={muscleFilter} onValueChange={setMuscleFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Agrupamento muscular" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os Agrupamentos</SelectItem>
+                    {MUSCLE_GROUPS.map((mg) => (
+                      <SelectItem key={mg.id} value={mg.id}>
+                        {mg.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="relative">
+                  <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-2.5" />
+                  <Input
+                    placeholder="Buscar exercício em PT-BR..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
               </div>
-            ) : (
-              (activeDay.workout_exercises || []).map((we: any, idx: number) => {
+
+              <div className="max-h-72 overflow-y-auto divide-y divide-border border border-border rounded-xl bg-white">
+                {filteredCatalog.map((ex) => {
+                  const isSelected = selectedExerciseObj?.id === ex.id
+                  return (
+                    <div
+                      key={ex.id}
+                      className={`p-3 flex items-center justify-between gap-3 text-xs transition ${
+                        isSelected ? 'bg-indigo-50/90 font-semibold' : 'hover:bg-muted/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <ExercisePreview
+                          namePt={ex.name_pt}
+                          muscleGroup={ex.muscle_group}
+                          secondaryMuscles={ex.secondary_muscles || []}
+                          equipment={ex.equipment}
+                          level={ex.level}
+                          instructionsPt={ex.instructions_pt || []}
+                          frameUrls={ex.frame_urls || []}
+                          gifUrl={ex.gif_url}
+                          compact
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSelectedExerciseId(ex.id)}
+                          className="text-left flex-1 min-w-0 focus:outline-none"
+                        >
+                          <div className="font-bold text-sm text-foreground">{ex.name_pt}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {MUSCLE_GROUP_LABEL[ex.muscle_group] || ex.muscle_group} • {ex.equipment}
+                          </div>
+                        </button>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={isSelected ? 'default' : 'outline'}
+                        onClick={() => setSelectedExerciseId(ex.id)}
+                        className={`h-8 px-3 text-xs shrink-0 ${
+                          isSelected ? 'bg-indigo-600 text-white' : ''
+                        }`}
+                      >
+                        {isSelected ? 'Selecionado' : 'Selecionar'}
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Direita do Card Superior: Exercício Selecionado + Séries & Repetições (Sem campo de Carga!) */}
+            <div className="lg:col-span-5">
+              {selectedExerciseObj ? (
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4 space-y-4">
+                  <div className="flex items-start gap-3.5">
+                    <ExercisePreview
+                      namePt={selectedExerciseObj.name_pt}
+                      muscleGroup={selectedExerciseObj.muscle_group}
+                      secondaryMuscles={selectedExerciseObj.secondary_muscles || []}
+                      equipment={selectedExerciseObj.equipment}
+                      level={selectedExerciseObj.level}
+                      instructionsPt={selectedExerciseObj.instructions_pt || []}
+                      frameUrls={selectedExerciseObj.frame_urls || []}
+                      gifUrl={selectedExerciseObj.gif_url}
+                    />
+                    <div className="space-y-1">
+                      <Badge className="bg-indigo-600 text-white text-[10px]">
+                        {MUSCLE_GROUP_LABEL[selectedExerciseObj.muscle_group] || selectedExerciseObj.muscle_group}
+                      </Badge>
+                      <div className="font-display font-bold text-base text-indigo-950">
+                        {selectedExerciseObj.name_pt}
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                        {selectedExerciseObj.instructions_pt?.[0] ||
+                          'Clique no GIF para ver o passo a passo completo em português.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Apenas Séries e Repetições (Campo de Carga removido conforme solicitado) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Séries</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={15}
+                        value={sets}
+                        onChange={(e) => setSets(Number(e.target.value))}
+                        className="bg-white h-9 font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Repetições / Tempo</Label>
+                      <Input
+                        value={reps}
+                        onChange={(e) => setReps(e.target.value)}
+                        placeholder="Ex: 10-12 ou 45s"
+                        className="bg-white h-9 font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Observação Biomecânica / Cadência</Label>
+                    <Input
+                      value={exNotes}
+                      onChange={(e) => setExNotes(e.target.value)}
+                      className="bg-white h-9 text-xs"
+                    />
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={handlePrescribeExercise}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 h-10"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>
+                      Incluir na {WEEKDAYS.find((w) => w.id === selectedWeekday)?.full} (Semana {selectedWeek})
+                    </span>
+                  </Button>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+                  Selecione um exercício ao lado para configurar séries e repetições.
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. EMBAIXO (Largura Total): Ficha do Dia para Visualização Ampla dos Itens */}
+      <Card className="rounded-2xl">
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <CardTitle className="font-display text-base flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-indigo-600" />
+              <span>
+                Ficha do Dia: {WEEKDAYS.find((w) => w.id === selectedWeekday)?.full} (Semana {selectedWeek})
+              </span>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {activeDay?.title || dayTitle} • {activeDay?.workout_exercises?.length || 0} exercícios prescritos
+            </CardDescription>
+          </div>
+          {dayMuscleGroups.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {dayMuscleGroups.map((mg) => (
+                <Badge key={mg} variant="secondary" className="text-xs">
+                  {MUSCLE_GROUP_LABEL[mg] || mg}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </CardHeader>
+
+        <CardContent>
+          {!activeDay || (activeDay.workout_exercises || []).length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border p-8 text-center space-y-2">
+              <Dumbbell className="w-8 h-8 text-muted-foreground mx-auto" />
+              <p className="text-sm font-semibold">Nenhum exercício prescrito para este dia</p>
+              <p className="text-xs text-muted-foreground">
+                Selecione um exercício com GIF no painel acima e clique em "Incluir" para montar a ficha deste dia.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {(activeDay.workout_exercises || []).map((we: any, idx: number) => {
                 const ex = we.exercises
                 if (!ex) return null
                 return (
                   <div
                     key={we.id}
-                    className="rounded-2xl border border-border bg-card p-3.5 flex items-start justify-between gap-3 hover:border-indigo-200 transition"
+                    className="rounded-2xl border border-border bg-card p-4 flex items-start justify-between gap-3.5 hover:border-indigo-300 transition shadow-2xs"
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-3.5 min-w-0">
                       <ExercisePreview
                         namePt={ex.name_pt}
                         muscleGroup={ex.muscle_group}
@@ -692,35 +740,37 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
                         gifUrl={ex.gif_url}
                       />
 
-                      <div className="space-y-1">
+                      <div className="space-y-1.5 min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <Badge variant="secondary" className="text-xs font-bold text-indigo-700">
                             #{idx + 1}
                           </Badge>
-                          <h4 className="font-display font-bold text-sm sm:text-base text-foreground">
+                          <h4 className="font-display font-bold text-base text-foreground">
                             {ex.name_pt}
                           </h4>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[11px]">
                             {MUSCLE_GROUP_LABEL[ex.muscle_group] || ex.muscle_group}
                           </Badge>
+                          <Badge variant="outline" className="text-[11px]">
+                            {ex.equipment}
+                          </Badge>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground pt-0.5">
                           <span>
                             <strong className="text-foreground">{we.sets}</strong> séries
                           </span>
                           <span>•</span>
                           <span>
-                            <strong className="text-foreground">{we.reps}</strong> reps
-                          </span>
-                          <span>•</span>
-                          <span>
-                            Carga: <strong className="text-foreground">{we.load_kg || 0} kg</strong>
+                            <strong className="text-foreground">{we.reps}</strong> repetições
                           </span>
                         </div>
 
                         {we.notes && (
-                          <p className="text-[11px] text-muted-foreground bg-muted/50 rounded-lg px-2 py-1">
+                          <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-2.5 py-1">
                             💡 {we.notes}
                           </p>
                         )}
@@ -731,6 +781,7 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
                       type="button"
                       size="icon"
                       variant="ghost"
+                      aria-label={`Remover ${ex.name_pt} da ficha`}
                       onClick={() => handleRemovePrescribedExercise(we.id)}
                       className="text-muted-foreground hover:text-destructive shrink-0"
                       title="Remover exercício"
@@ -739,11 +790,11 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
                     </Button>
                   </div>
                 )
-              })
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Modal: Cadastrar Novo Exercício em Português com GIF */}
       <Dialog open={customExOpen} onOpenChange={setCustomExOpen}>

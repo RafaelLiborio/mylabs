@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
-import { invokeManageUsers } from '@/lib/supabase'
+import { invokeManageUsers, translateErrorPt } from '@/lib/supabase'
+import { DatePickerField } from '@/components/shared/DatePickerField'
+import { PasswordInput } from '@/components/shared/PasswordInput'
 import {
   Dialog,
   DialogContent,
@@ -101,7 +103,7 @@ export function ClientRegisterDialog({ onClientCreated }: ClientRegisterDialogPr
       toast.success(`Cliente ${fullName} cadastrado com usuário e login ativos!`)
       onClientCreated(res.client_id)
     } catch (err: any) {
-      toast.error(err?.message || 'Erro ao cadastrar cliente.')
+      toast.error(translateErrorPt(err))
     } finally {
       setSubmitting(false)
     }
@@ -112,6 +114,7 @@ export function ClientRegisterDialog({ onClientCreated }: ClientRegisterDialogPr
         `Olá, *${createdCredentials.name}*! Bem-vindo(a) ao *MyLabs*! 🧬`,
         `Seu acesso exclusivo para acompanhar sua Dieta, Treinos com GIFs e Evolução já está liberado:`,
         '',
+        `🔗 *Rota Exclusiva de Acesso:* /login/cliente`,
         `📧 *Login (E-mail):* ${createdCredentials.email}`,
         `🔑 *Senha de Acesso:* ${createdCredentials.password}`,
         '',
@@ -138,13 +141,13 @@ export function ClientRegisterDialog({ onClientCreated }: ClientRegisterDialogPr
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Badge className="bg-emerald-600 text-white">Prontuário + Conta Auth</Badge>
-            <Badge variant="outline">Supabase RLS Isolado</Badge>
+            <Badge variant="outline">Rota: /login/cliente</Badge>
           </div>
           <DialogTitle className="font-display text-lg">
             Cadastro Completo de Cliente (Criação Automática de Usuário e Login)
           </DialogTitle>
           <DialogDescription>
-            Ao salvar, o MyLabs cria a conta de autenticação do cliente, configura as metas iniciais e agenda o envio periódico do relatório profissional.
+            Ao salvar, o MyLabs cria a conta de autenticação do cliente, vincula exclusivamente ao seu controle e agenda o envio periódico do relatório profissional.
           </DialogDescription>
         </DialogHeader>
 
@@ -156,7 +159,7 @@ export function ClientRegisterDialog({ onClientCreated }: ClientRegisterDialogPr
                 <KeyRound className="w-3.5 h-3.5" />
                 <span>1. Dados de Acesso (Login do Cliente) & WhatsApp</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
                 <div className="space-y-1.5">
                   <Label htmlFor="client-fullname">Nome Completo do Cliente *</Label>
                   <Input
@@ -192,9 +195,8 @@ export function ClientRegisterDialog({ onClientCreated }: ClientRegisterDialogPr
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="client-password">Senha Inicial de Acesso *</Label>
-                  <Input
+                  <PasswordInput
                     id="client-password"
-                    type="text"
                     required
                     minLength={6}
                     value={password}
@@ -232,12 +234,13 @@ export function ClientRegisterDialog({ onClientCreated }: ClientRegisterDialogPr
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="client-birth">Nascimento</Label>
-                  <Input
+                  <Label htmlFor="client-birth">Data de Nascimento</Label>
+                  <DatePickerField
                     id="client-birth"
-                    type="date"
                     value={birthDate}
-                    onChange={(e) => setBirthDate(e.target.value)}
+                    onChange={setBirthDate}
+                    fromYear={1935}
+                    toYear={new Date().getFullYear()}
                   />
                 </div>
 
@@ -358,9 +361,12 @@ export function ClientRegisterDialog({ onClientCreated }: ClientRegisterDialogPr
                 <span>Conta e Login Criados com Sucesso!</span>
               </div>
               <p className="text-xs text-emerald-900/80">
-                O cliente <strong>{createdCredentials.name}</strong> já pode entrar no aplicativo MyLabs com as credenciais abaixo (com acesso restrito apenas aos módulos de cliente):
+                O cliente <strong>{createdCredentials.name}</strong> já pode entrar pela rota exclusiva <code>/login/cliente</code> com as credenciais abaixo:
               </p>
               <div className="rounded-xl bg-white border border-emerald-200 p-3.5 space-y-1 text-xs font-mono">
+                <div>
+                  <strong>Rota Exclusiva:</strong> /login/cliente
+                </div>
                 <div>
                   <strong>E-mail (Login):</strong> {createdCredentials.email}
                 </div>
@@ -404,7 +410,7 @@ export function ClientRegisterDialog({ onClientCreated }: ClientRegisterDialogPr
               </div>
 
               <Button type="button" onClick={() => setOpen(false)}>
-                Ir para o Prontuário do Cliente
+                Abrir Prontuário do Cliente
               </Button>
             </div>
           </div>

@@ -15,6 +15,37 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, 
   },
 })
 
+export function translateErrorPt(err: any, fallback = 'Não foi possível concluir a operação.'): string {
+  const raw = typeof err === 'string' ? err : err?.message || err?.error_description || ''
+  if (!raw) return fallback
+  const lower = raw.toLowerCase()
+  if (lower.includes('invalid login credentials') || lower.includes('invalid_credentials')) {
+    return 'E-mail ou senha incorretos. Verifique seus dados e tente novamente.'
+  }
+  if (lower.includes('email not confirmed')) {
+    return 'Seu e-mail ainda não foi confirmado.'
+  }
+  if (lower.includes('user already registered') || lower.includes('already been registered')) {
+    return 'Este e-mail já está cadastrado na plataforma MyLabs.'
+  }
+  if (lower.includes('password should be at least')) {
+    return 'A senha deve possuir no mínimo 6 caracteres.'
+  }
+  if (lower.includes('rate limit') || lower.includes('too many requests')) {
+    return 'Muitas tentativas em sequência. Aguarde alguns instantes e tente novamente.'
+  }
+  if (lower.includes('invalid email') || lower.includes('unable to validate email')) {
+    return 'O formato do e-mail informado é inválido.'
+  }
+  if (lower.includes('duplicate key') && lower.includes('diet_meal_items')) {
+    return 'Este alimento já está incluído nesta refeição. Ajuste a gramatura existente ou adicione em outra refeição.'
+  }
+  if (lower.includes('network') || lower.includes('failed to fetch')) {
+    return 'Falha de conexão com o servidor. Verifique sua internet.'
+  }
+  return raw
+}
+
 export async function invokeManageUsers<T = any>(payload: Record<string, any>): Promise<T> {
   const {
     data: { session },
@@ -36,7 +67,7 @@ export async function invokeManageUsers<T = any>(payload: Record<string, any>): 
 
   const data = await res.json().catch(() => ({}))
   if (!res.ok || data?.error) {
-    throw new Error(data?.error || `Falha na operação (${res.status})`)
+    throw new Error(translateErrorPt(data?.error || `Falha na operação (${res.status})`))
   }
   return data as T
 }

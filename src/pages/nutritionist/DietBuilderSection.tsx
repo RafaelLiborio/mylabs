@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { supabase, getSignedOrPublicUrl } from '@/lib/supabase'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { supabase, getSignedOrPublicUrl, translateErrorPt } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { MediaAttachmentPicker, type CapturedMediaFile } from '@/components/shared/MediaAttachmentPicker'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,11 +31,13 @@ import {
   computeBmr,
   ENERGY_EQUATIONS,
   type EnergyEquationId,
+  kcalFromMacros,
   suggestMacros,
   tdee,
 } from '@/domain/energy'
 import { calcFoodPortionMacros, FOOD_GROUP_LABELS, type FoodItemMacro } from '@/domain/nutrition'
 import {
+  Apple,
   Calculator,
   CheckCircle2,
   Clock,
@@ -83,13 +85,23 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
   const [newMealTime, setNewMealTime] = useState('16:00')
   const [newMealNotes, setNewMealNotes] = useState('')
 
-  // Add Food modal (TACO + Custom Food creation)
+  // Add Food modal (TACO + Custom Food)
   const [addFoodOpen, setAddFoodOpen] = useState(false)
   const [targetMealId, setTargetMealId] = useState<string>('')
   const [foodSearch, setFoodSearch] = useState('')
   const [foodGroupFilter, setFoodGroupFilter] = useState('all')
   const [selectedFoodId, setSelectedFoodId] = useState<string>('')
   const [foodGrams, setFoodGrams] = useState<number>(120)
+
+  // Register New Custom Food modal (Page 3 improvement)
+  const [customFoodOpen, setCustomFoodOpen] = useState(false)
+  const [newFoodName, setNewFoodName] = useState('')
+  const [newFoodGroup, setNewFoodGroup] = useState<string>('protein')
+  const [newFoodProtein, setNewFoodProtein] = useState<number>(25)
+  const [newFoodCarb, setNewFoodCarb] = useState<number>(5)
+  const [newFoodFat, setNewFoodFat] = useState<number>(3)
+  const [newFoodFiber, setNewFoodFiber] = useState<number>(1)
+  const [savingCustomFood, setSavingCustomFood] = useState(false)
 
   // New Diet Plan modal
   const [newPlanOpen, setNewPlanOpen] = useState(false)
@@ -170,7 +182,13 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
     [plans, selectedPlanId],
   )
 
-  // Scientific calculation result
+  // IDs of foods already included in the active target meal card (prevents duplicates in same card, allows in other cards)
+  const existingFoodIdsInTargetMeal = useMemo(() => {
+    const meal = meals.find((m) => m.id === targetMealId)
+    if (!meal) return new Set<string>()
+    return new Set<string>((meal.diet_meal_items || []).map((it: any) => String(it.food_id)))
+  }, [meals, targetMealId])
+
   const scientificCalc = useMemo(() => {
     const bmr = computeBmr(eqId, {
       sex: clientMeta.sex,
@@ -210,7 +228,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
       })
       .eq('id', activePlan.id)
     if (error) {
-      toast.error('Erro ao aplicar metas científicas.')
+      toast.error(translateErrorPt(error))
       return
     }
     toast.success(`Metas científicas aplicadas (${scientificCalc.kcal} kcal)!`)
@@ -236,11 +254,10 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
       .single()
 
     if (error || !data) {
-      toast.error(error?.message || 'Erro ao criar plano alimentar.')
+      toast.error(translateErrorPt(error))
       return
     }
 
-    // Create 3 starter meals automatically
     await supabase.from('diet_meals').insert([
       { plan_id: data.id, name: 'Café da Manhã', meal_time: '07:30', position: 1 },
       { plan_id: data.id, name: 'Almoço', meal_time: '12:30', position: 2 },
@@ -263,7 +280,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
       notes: newMealNotes.trim() || null,
     })
     if (error) {
-      toast.error(error.message)
+      toast.error(translateErrorPt(error))
       return
     }
     toast.success('Refeição adicionada ao plano!')
@@ -280,20 +297,68 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
   }
 
   const handleConfirmAddFood = async () => {
-    if (!targetMealId || !selectedFoodId) return
+    if (!targetMealId || !selectedFoodObj) return
+
+    if (existingFoodIdsInTargetMeal.has(selectedFoodObj.id)) {
+      toast.error(
+        `"${selectedFoodObj.name}" já está incluído nesta refeição. Ajuste a gramatura no card ou adicione em outra refeição.`,
+      )
+      return
+    }
+
     const { error } = await supabase.from('diet_meal_items').insert({
       meal_id: targetMealId,
-      food_id: selectedFoodId,
+      food_id: selectedFoodObj.id,
       grams: Math.max(5, foodGrams),
       position: 99,
     })
     if (error) {
-      toast.error(error.message)
+      toast.error(translateErrorPt(error))
       return
     }
-    toast.success('Alimento incluído na refeição!')
+    toast.success(`"${selectedFoodObj.name}" incluído na refeição!`)
     setAddFoodOpen(false)
     if (activePlan) loadMealsAndAttachments(activePlan.id)
+  }
+
+  const handleCreateCustomFood = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!profile?.id) return
+    if (!newFoodName.trim()) {
+      toast.error('Informe o nome do alimento.')
+      return
+    }
+    setSavingCustomFood(true)
+    try {
+      const { data, error } = await supabase
+        .from('foods')
+        .insert({
+          name: newFoodName.trim(),
+          food_group: newFoodGroup,
+          protein_g: Math.max(0, Number(newFoodProtein) || 0),
+          carb_g: Math.max(0, Number(newFoodCarb) || 0),
+          fat_g: Math.max(0, Number(newFoodFat) || 0),
+          fiber_g: Math.max(0, Number(newFoodFiber) || 0),
+          source: 'personalizado',
+          owner_id: profile.id,
+        })
+        .select('id, name, food_group, protein_g, carb_g, fat_g, fiber_g')
+        .single()
+
+      if (error || !data) throw error || new Error('Erro ao cadastrar alimento.')
+
+      toast.success(`Alimento "${data.name}" cadastrado com sucesso na base nutricional!`)
+      setFoods((prev) => [...prev, data as FoodItemMacro].sort((a, b) => a.name.localeCompare(b.name)))
+      setSelectedFoodId(data.id)
+      setFoodGroupFilter('all')
+      setFoodSearch('')
+      setCustomFoodOpen(false)
+      setNewFoodName('')
+    } catch (err: any) {
+      toast.error(translateErrorPt(err))
+    } finally {
+      setSavingCustomFood(false)
+    }
   }
 
   const handleUpdateGrams = async (itemId: string, grams: number) => {
@@ -502,7 +567,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
         </CardContent>
       </Card>
 
-      {/* 2. Seletor de Plano Alimentar, Progresso de Macros e Anexos Visuais / Câmera */}
+      {/* 2. Seletor de Plano Alimentar, Cadastro de Novo Alimento, Progresso de Macros e Anexos / Câmera */}
       <Card className="rounded-2xl">
         <CardHeader className="pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -532,12 +597,24 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
 
           {activePlan && (
             <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setCustomFoodOpen(true)}
+                className="gap-1.5 border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+              >
+                <Apple className="w-4 h-4 text-emerald-600" />
+                <span>Cadastrar Novo Alimento</span>
+              </Button>
+
               <MediaAttachmentPicker
                 triggerLabel="Anexar Foto / Câmera"
                 title="Anexar Foto de Refeição ou Guia Visual ao Plano"
                 description="Envie fotos de montagem de prato, porções ou capture agora pela câmera ao vivo."
                 onConfirmUpload={handleUploadDietAttachment}
               />
+
               <Button
                 type="button"
                 size="sm"
@@ -553,7 +630,6 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
 
         {activePlan && (
           <CardContent className="space-y-4">
-            {/* Comparativo Prescrito vs Meta */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="rounded-xl border border-border p-3 space-y-1">
                 <span className="text-xs text-muted-foreground">Calorias Prescritas</span>
@@ -685,6 +761,10 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
                     variant="outline"
                     onClick={() => {
                       setTargetMealId(meal.id)
+                      // Pre-select first food not yet in this meal card
+                      const usedIds = new Set((meal.diet_meal_items || []).map((x: any) => String(x.food_id)))
+                      const firstAvailable = foods.find((f) => !usedIds.has(f.id))
+                      if (firstAvailable) setSelectedFoodId(firstAvailable.id)
                       setAddFoodOpen(true)
                     }}
                     className="h-8 text-xs gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
@@ -763,23 +843,35 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
         })}
       </div>
 
-      {/* Modal: Adicionar Alimento TACO */}
+      {/* Modal: Adicionar Alimento TACO (Bloqueia duplicata na mesma refeição + Botão Cadastrar Novo Alimento) */}
       <Dialog open={addFoodOpen} onOpenChange={setAddFoodOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="font-display flex items-center gap-2">
-              <Utensils className="w-4 h-4 text-emerald-600" />
-              <span>Adicionar Alimento da Tabela TACO</span>
-            </DialogTitle>
+            <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
+              <DialogTitle className="font-display flex items-center gap-2">
+                <Utensils className="w-4 h-4 text-emerald-600" />
+                <span>Adicionar Alimento à Refeição</span>
+              </DialogTitle>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setCustomFoodOpen(true)}
+                className="h-7 text-xs gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Cadastrar Novo Alimento</span>
+              </Button>
+            </div>
             <DialogDescription>
-              Pesquise entre os 62+ alimentos brasileiros padronizados por 100g e ajuste a porção.
+              Alimentos já presentes nesta refeição ficam bloqueados para evitar duplicidade no mesmo card (você pode incluí-los normalmente em outras refeições).
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div className="sm:col-span-2 relative">
-                <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-3" />
+                <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-2.5" />
                 <Input
                   placeholder="Buscar alimento (ex: Frango, Arroz, Aveia...)"
                   value={foodSearch}
@@ -804,14 +896,22 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
 
             <div className="max-h-56 overflow-y-auto divide-y divide-border border border-border rounded-xl">
               {filteredFoods.map((f) => {
-                const isSelected = selectedFoodObj?.id === f.id
+                const alreadyInThisMeal = existingFoodIdsInTargetMeal.has(f.id)
+                const isSelected = selectedFoodObj?.id === f.id && !alreadyInThisMeal
                 return (
                   <button
                     key={f.id}
                     type="button"
-                    onClick={() => setSelectedFoodId(f.id)}
+                    disabled={alreadyInThisMeal}
+                    onClick={() => {
+                      if (!alreadyInThisMeal) setSelectedFoodId(f.id)
+                    }}
                     className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between text-xs transition ${
-                      isSelected ? 'bg-emerald-50 font-semibold text-emerald-950' : 'hover:bg-muted/50'
+                      alreadyInThisMeal
+                        ? 'bg-muted/60 text-muted-foreground opacity-60 cursor-not-allowed'
+                        : isSelected
+                          ? 'bg-emerald-50 font-semibold text-emerald-950'
+                          : 'hover:bg-muted/50'
                     }`}
                   >
                     <div>
@@ -821,7 +921,13 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
                         {f.carb_g}g | G {f.fat_g}g
                       </div>
                     </div>
-                    {isSelected && <Badge className="bg-emerald-600 text-white">Selecionado</Badge>}
+                    {alreadyInThisMeal ? (
+                      <Badge variant="outline" className="text-[10px]">
+                        Já incluído neste card
+                      </Badge>
+                    ) : isSelected ? (
+                      <Badge className="bg-emerald-600 text-white">Selecionado</Badge>
+                    ) : null}
                   </button>
                 )
               })}
@@ -882,12 +988,130 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
             </Button>
             <Button
               type="button"
+              disabled={!selectedFoodObj || existingFoodIdsInTargetMeal.has(selectedFoodObj.id)}
               onClick={handleConfirmAddFood}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               Incluir na Refeição
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Cadastrar Novo Alimento Personalizado pelo Nutricionista */}
+      <Dialog open={customFoodOpen} onOpenChange={setCustomFoodOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-emerald-600 text-white">Base Nutricional MyLabs</Badge>
+              <Badge variant="outline">Porção de Referência: 100g</Badge>
+            </div>
+            <DialogTitle className="font-display flex items-center gap-2 mt-1">
+              <Apple className="w-4 h-4 text-emerald-600" />
+              <span>Cadastrar Novo Alimento</span>
+            </DialogTitle>
+            <DialogDescription>
+              Informe a composição nutricional por 100g. O alimento ficará disponível imediatamente para prescrição e substituições equivalentes.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateCustomFood} className="space-y-3.5">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-food-name">Nome do Alimento *</Label>
+              <Input
+                id="new-food-name"
+                required
+                placeholder="Ex: Crepioca Proteica ou Queijo Minas Light"
+                value={newFoodName}
+                onChange={(e) => setNewFoodName(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Grupo Alimentar *</Label>
+              <Select value={newFoodGroup} onValueChange={setNewFoodGroup}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(FOOD_GROUP_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-end">
+              <div className="space-y-1">
+                <Label className="text-xs">Proteínas (g)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={newFoodProtein}
+                  onChange={(e) => setNewFoodProtein(Number(e.target.value))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Carboidratos (g)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={newFoodCarb}
+                  onChange={(e) => setNewFoodCarb(Number(e.target.value))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Gorduras (g)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={newFoodFat}
+                  onChange={(e) => setNewFoodFat(Number(e.target.value))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Fibras (g)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={newFoodFiber}
+                  onChange={(e) => setNewFoodFiber(Number(e.target.value))}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 flex items-center justify-between text-xs">
+              <span className="text-emerald-950 font-medium">
+                Energia calculada automaticamente (Atwater 4-4-9):
+              </span>
+              <strong className="font-display text-base text-emerald-700">
+                {kcalFromMacros(newFoodProtein, newFoodCarb, newFoodFat)} kcal / 100g
+              </strong>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setCustomFoodOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={savingCustomFood}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {savingCustomFood ? 'Salvando...' : 'Salvar Novo Alimento'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

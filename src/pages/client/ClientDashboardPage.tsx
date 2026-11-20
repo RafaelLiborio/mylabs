@@ -983,13 +983,6 @@ export function ClientDashboardPage() {
                                   <span>
                                     <strong className="text-foreground">{we.reps}</strong> repetições
                                   </span>
-                                  <span>•</span>
-                                  <span>
-                                    Carga sugerida:{' '}
-                                    <strong className="text-foreground">
-                                      {Number(we.load_kg) > 0 ? `${we.load_kg} kg` : 'Peso corporal'}
-                                    </strong>
-                                  </span>
                                 </div>
 
                                 {we.notes && (
@@ -1000,19 +993,8 @@ export function ClientDashboardPage() {
                               </div>
                             </div>
 
-                            {/* Controles de Carga Executada e Conclusão (Sem Cronômetro) */}
+                            {/* Controles de Repetições Executadas e Conclusão (Sem Cronômetro e Sem Campo de Carga) */}
                             <div className="flex flex-wrap items-end gap-2.5">
-                              <div className="space-y-1">
-                                <Label className="text-[10px] uppercase text-muted-foreground">Carga (kg)</Label>
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  max={600}
-                                  value={loadVal}
-                                  onChange={(e) => handleToggleExercise(we, Number(e.target.value), repsVal)}
-                                  className="w-24 h-9 font-bold"
-                                />
-                              </div>
                               <div className="space-y-1">
                                 <Label className="text-[10px] uppercase text-muted-foreground">Reps Feitas</Label>
                                 <Input

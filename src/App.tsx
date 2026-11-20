@@ -43,10 +43,9 @@ function RoleLandingRedirect() {
   }
 
   if (!user || !profile) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/login/cliente" replace />
   }
 
-  // Isolamento estrito de módulos: clientes nunca veem módulos de nutricionista ou suporte
   if (profile.role === 'client') {
     return <Navigate to="/cliente" replace />
   }
@@ -58,14 +57,16 @@ function RoleLandingRedirect() {
 
 function ProtectedRoute({
   allowedRoles,
+  fallbackLoginPath,
   children,
 }: {
   allowedRoles: ('client' | 'nutritionist' | 'admin')[]
+  fallbackLoginPath: string
   children: React.ReactNode
 }) {
   const { user, profile, loading } = useAuth()
   if (loading) return <FullPageLoader />
-  if (!user || !profile) return <Navigate to="/login" replace />
+  if (!user || !profile) return <Navigate to={fallbackLoginPath} replace />
   if (!allowedRoles.includes(profile.role)) {
     return <Navigate to="/" replace />
   }
@@ -86,14 +87,21 @@ export default function App() {
             <Suspense fallback={<FullPageLoader />}>
               <Routes>
                 <Route path="/" element={<RoleLandingRedirect />} />
-                <Route path="/login" element={<AuthPage />} />
+
+                {/* Rotas específicas de login para cada perfil */}
+                <Route path="/login" element={<Navigate to="/login/cliente" replace />} />
+                <Route path="/login/cliente" element={<AuthPage portalRole="client" />} />
+                <Route path="/login/nutri" element={<AuthPage portalRole="nutritionist" />} />
+                <Route path="/login/nutricionista" element={<AuthPage portalRole="nutritionist" />} />
+                <Route path="/login/suporte" element={<AuthPage portalRole="admin" />} />
+
                 <Route path="/configurar-suporte" element={<ExternalSupportSetupPage />} />
 
                 {/* Portal exclusivo do Cliente (isolado de Nutri e Suporte) */}
                 <Route
                   path="/cliente"
                   element={
-                    <ProtectedRoute allowedRoles={['client']}>
+                    <ProtectedRoute allowedRoles={['client']} fallbackLoginPath="/login/cliente">
                       <ClientDashboardPage />
                     </ProtectedRoute>
                   }
@@ -103,7 +111,7 @@ export default function App() {
                 <Route
                   path="/nutri"
                   element={
-                    <ProtectedRoute allowedRoles={['nutritionist', 'admin']}>
+                    <ProtectedRoute allowedRoles={['nutritionist', 'admin']} fallbackLoginPath="/login/nutri">
                       <NutritionistDashboardPage />
                     </ProtectedRoute>
                   }
@@ -113,7 +121,7 @@ export default function App() {
                 <Route
                   path="/suporte"
                   element={
-                    <ProtectedRoute allowedRoles={['admin']}>
+                    <ProtectedRoute allowedRoles={['admin']} fallbackLoginPath="/login/suporte">
                       <AdminDashboardPage />
                     </ProtectedRoute>
                   }

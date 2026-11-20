@@ -19,6 +19,7 @@ import {
 import { evaluateFormula, SAMPLE_VARIABLES } from './formula'
 import { buildReadyWhatsappMessage, buildWhatsappUrl, sanitizeWhatsappDigits } from './whatsapp'
 import { calcFoodPortionMacros, getSmartFoodEquivalents } from './nutrition'
+import { BRAZIL_STATES, joinCityState, splitCityState } from './brazilStates'
 
 describe('Scientific Energy Equations', () => {
   it('computes Mifflin-St Jeor accurately for male and female', () => {
@@ -137,5 +138,11 @@ describe('WhatsApp & Nutrition Equivalence', () => {
     const eqs = getSmartFoodEquivalents(frango, 150, [frango, tilapia])
     expect(eqs).toHaveLength(1)
     expect(eqs[0].grams).toBeGreaterThan(170)
+  })
+
+  it('handles all 27 Brazilian states (UF) and city/state parsing', () => {
+    expect(BRAZIL_STATES).toHaveLength(27)
+    expect(splitCityState('São Paulo - SP')).toEqual({ city: 'São Paulo', uf: 'SP' })
+    expect(joinCityState('Salvador', 'ba')).toBe('Salvador - BA')
   })
 })
