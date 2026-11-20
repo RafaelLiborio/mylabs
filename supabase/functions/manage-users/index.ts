@@ -52,7 +52,6 @@ Deno.serve(async (req: Request) => {
 
     // 1. BOOTSTRAP DEMO DATA (idempotent) + deduplicate any meal items
     if (action === "bootstrap_demo") {
-      // Deduplicate any existing (meal_id, food_id) duplicates
       const { data: allItems } = await admin
         .from("diet_meal_items")
         .select("id, meal_id, food_id")
@@ -466,6 +465,193 @@ Deno.serve(async (req: Request) => {
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    // 3C. UPDATE USER LOGIN & CLIENT RECORDS (Exclusivo Suporte / Admin)
+    if (action === "update_user_and_client") {
+      if (callerProfile.role !== "admin") {
+        return new Response(
+          JSON.stringify({ error: "Apenas o Suporte / Admin pode editar logins e registros administrativos." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const {
+        user_id,
+        full_name,
+        email,
+        new_password,
+        whatsapp,
+        active,
+        crn,
+        crn_region,
+        specialty,
+        clinic_name,
+        city_state,
+        bio,
+        client_record,
+      } = body;
+
+      if (!user_id) {
+        return new Response(JSON.stringify({ error: "ID do usuário é obrigatório." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // 1. Update auth.users (email & optional password)
+      const authUpdates: Record<string, any> = {};
+      if (email && String(email).trim()) {
+        authUpdates.email = String(email).trim().toLowerCase();
+        authUpdates.email_confirm = true;
+      }
+      if (new_password && String(new_password).trim().length > 0) {
+        if (String(new_password).trim().length < 6) {
+          return new Response(
+            JSON.stringify({ error: "A nova senha deve ter no mínimo 6 caracteres." }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        authUpdates.password = String(new_password).trim();
+      }
+      if (full_name) {
+        authUpdates.user_metadata = { full_name: String(full_name).trim() };
+      }
+
+      if (Object.keys(authUpdates).length > 0) {
+        const { error: authErr } = await admin.auth.admin.updateUserById(user_id, authUpdates);
+        if (authErr) {
+          return new Response(JSON.stringify({ error: translateAuthErrorPt(authErr.message) }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // 2. Update public.profiles
+      const profilePatch: Record<string, any> = {};
+      if (full_name !== undefined) profilePatch.full_name = String(full_name).trim();
+      if (email !== undefined) profilePatch.email = String(email).trim().toLowerCase();
+      if (whatsapp !== undefined) profilePatch.whatsapp = sanitizeWhatsapp(whatsapp);
+      if (active !== undefined) profilePatch.active = Boolean(active);
+      if (crn !== undefined) profilePatch.crn = crn ? String(crn).trim() : null;
+      if (crn_region !== undefined) profilePatch.crn_region = crn_region || null;
+      if (specialty !== undefined) profilePatch.specialty = specialty || null;
+      if (clinic_name !== undefined) profilePatch.clinic_name = clinic_name || null;
+      if (city_state !== undefined) profilePatch.city_state = city_state || null;
+      if (bio !== undefined) profilePatch.bio = bio || null;
+
+      if (Object.keys(profilePatch).length > 0) {
+        const { error: profErr } = await admin.from("profiles").update(profilePatch).eq("id", user_id);
+        if (profErr) {
+          return new Response(JSON.stringify({ error: translateAuthErrorPt(profErr.message) }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // 3. Update public.clients if client_record provided
+      if (client_record && typeof client_record === "object") {
+        const cPatch: Record<string, any> = {};
+        if (client_record.nutritionist_id) cPatch.nutritionist_id = client_record.nutritionist_id;
+        if (client_record.birth_date !== undefined) cPatch.birth_date = client_record.birth_date || null;
+        if (client_record.sex) cPatch.sex = client_record.sex;
+        if (client_record.height_cm !== undefined) cPatch.height_cm = Number(client_record.height_cm) || 170;
+        if (client_record.goal !== undefined) cPatch.goal = client_record.goal;
+        if (client_record.activity_level) cPatch.activity_level = client_record.activity_level;
+        if (client_record.water_goal_ml !== undefined) cPatch.water_goal_ml = Number(client_record.water_goal_ml) || 2500;
+        if (client_record.plan) cPatch.plan = client_record.plan;
+        if (client_record.restrictions !== undefined) cPatch.restrictions = client_record.restrictions || null;
+        if (client_record.clinical_notes !== undefined) cPatch.clinical_notes = client_record.clinical_notes || null;
+
+        if (Object.keys(cPatch).length > 0) {
+          const { error: cliErr } = await admin.from("clients").update(cPatch).eq("id", user_id);
+          if (cliErr) {
+            return new Response(JSON.stringify({ error: translateAuthErrorPt(cliErr.message) }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        }
+      }
+
+      return new Response(JSON.stringify({ ok: true, user_id }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 3D. RESET CLIENT CLINICAL RECORDS (Exclusivo Suporte / Admin — limpa registros mantendo o login)
+    if (action === "reset_client_records") {
+      if (callerProfile.role !== "admin") {
+        return new Response(
+          JSON.stringify({ error: "Apenas o Suporte / Admin pode limpar registros de clientes." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const { client_id } = body;
+      if (!client_id) {
+        return new Response(JSON.stringify({ error: "ID do cliente é obrigatório." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      await Promise.all([
+        admin.from("meal_logs").delete().eq("client_id", client_id),
+        admin.from("water_logs").delete().eq("client_id", client_id),
+        admin.from("workout_logs").delete().eq("client_id", client_id),
+        admin.from("weight_checkins").delete().eq("client_id", client_id),
+        admin.from("anthropometry_assessments").delete().eq("client_id", client_id),
+        admin.from("reports").delete().eq("client_id", client_id),
+        admin.from("diet_plans").delete().eq("client_id", client_id),
+        admin.from("workout_plans").delete().eq("client_id", client_id),
+      ]);
+
+      return new Response(JSON.stringify({ ok: true, client_id }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 3E. DELETE USER LOGIN & ALL RECORDS (Exclusivo Suporte / Admin)
+    if (action === "delete_user_and_records") {
+      if (callerProfile.role !== "admin") {
+        return new Response(
+          JSON.stringify({ error: "Apenas o Suporte / Admin pode excluir logins e registros." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const { user_id } = body;
+      if (!user_id) {
+        return new Response(JSON.stringify({ error: "ID do usuário é obrigatório." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (user_id === callerProfile.id) {
+        return new Response(
+          JSON.stringify({ error: "Você não pode excluir sua própria conta de Suporte ativa." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // Clean client records & cascade
+      await admin.from("clients").delete().eq("id", user_id);
+      await admin.from("profiles").delete().eq("id", user_id);
+      const { error: delAuthErr } = await admin.auth.admin.deleteUser(user_id);
+      if (delAuthErr) {
+        return new Response(JSON.stringify({ error: translateAuthErrorPt(delAuthErr.message) }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ ok: true, deleted_user_id: user_id }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(JSON.stringify({ error: "Ação desconhecida." }), {

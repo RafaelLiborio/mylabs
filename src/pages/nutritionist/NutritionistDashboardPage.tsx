@@ -375,75 +375,106 @@ export function NutritionistDashboardPage() {
       ) : (
         /* ==================== VISÃO 2: TELA CLÍNICA DO CLIENTE SELECIONADO (PÁGINAS 7 & 8 DO PDF) ==================== */
         <div className="space-y-6">
-          {/* Barra Superior do Paciente Ativo + Botão Voltar ao Módulo de Controle */}
+          {/* Barra Superior do Paciente Ativo + Botão Voltar ao Módulo de Controle (Organizada em 2 linhas alinhadas) */}
           <Card className="rounded-3xl border-border bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950 text-white shadow-md">
-            <CardContent className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setOpenedClientId(null)}
-                  className="self-start sm:self-center gap-1.5 bg-white/15 hover:bg-white/25 text-white border border-white/20"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Voltar aos Meus Clientes</span>
-                </Button>
+            <CardContent className="p-5 sm:p-6 space-y-4">
+              {/* Linha 1: Navegação e Troca Rápida de Paciente */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-white/10">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setOpenedClientId(null)}
+                    className="h-9 px-3.5 rounded-xl gap-1.5 bg-white/15 hover:bg-white/25 text-white border border-white/20 font-semibold"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Voltar aos Meus Clientes</span>
+                  </Button>
 
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-xs text-indigo-300 font-semibold">
+                  <Badge className="bg-indigo-500/20 text-indigo-200 border-indigo-400/30 gap-1.5 py-1 px-2.5">
                     <Users className="w-3.5 h-3.5" />
                     <span>Paciente em Atendimento Clínico ({clients.length} vinculados)</span>
-                  </div>
+                  </Badge>
+                </div>
 
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                  <span className="text-xs text-slate-300 whitespace-nowrap hidden md:inline">
+                    Paciente ativo:
+                  </span>
                   <Select value={openedClientId || ''} onValueChange={(id) => setOpenedClientId(id)}>
-                    <SelectTrigger className="w-full sm:w-72 bg-white/10 border-white/20 text-white font-display font-bold">
+                    <SelectTrigger className="w-full sm:w-64 bg-white/10 border-white/20 text-white font-display font-bold h-9 rounded-xl">
                       <SelectValue placeholder="Selecione um paciente" />
                     </SelectTrigger>
                     <SelectContent>
                       {clients.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
-                          {c.profiles?.full_name || 'Cliente'} ({c.goal || 'Clínico'})
+                          {c.profiles?.full_name || 'Cliente'}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-                      Plano {activeClient.plan || 'Pro'}
-                    </Badge>
-                    <Badge variant="outline" className="border-slate-700 text-slate-200">
-                      {clientMeta.age} anos • {clientMeta.heightCm} cm • {clientMeta.weightKg} kg
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-slate-300">
-                    Objetivo: <strong className="text-white">{activeClient.goal}</strong> • E-mail:{' '}
-                    {activeClient.profiles?.email}
-                  </p>
-                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
-                <div className="rounded-2xl bg-white/10 border border-white/10 px-3.5 py-2">
-                  <span className="text-[11px] text-slate-300 block">Peso Atual</span>
-                  <strong className="font-display text-lg text-white">
-                    {clientMeta.weightKg} kg
-                  </strong>
+              {/* Linha 2: Identificação Clínica Alinhada + 3 KPIs Horizontais Uniformes */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                  <Avatar className="h-12 w-12 border-2 border-emerald-400/40 shrink-0">
+                    <AvatarFallback className="bg-emerald-500/20 text-emerald-300 font-display font-extrabold text-sm">
+                      {(activeClient.profiles?.full_name || 'CL')
+                        .split(' ')
+                        .map((n: string) => n[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="font-display font-extrabold text-lg sm:text-xl text-white truncate">
+                        {activeClient.profiles?.full_name || 'Cliente'}
+                      </h2>
+                      <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                        Plano {activeClient.plan || 'Pro'}
+                      </Badge>
+                      <Badge variant="outline" className="border-slate-700 text-slate-200">
+                        {clientMeta.age} anos • {clientMeta.heightCm} cm • {clientMeta.weightKg} kg
+                      </Badge>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300">
+                      <span>
+                        Objetivo: <strong className="text-emerald-300">{activeClient.goal}</strong>
+                      </span>
+                      <span className="hidden sm:inline text-slate-600">•</span>
+                      <span>
+                        E-mail: <strong className="text-white">{activeClient.profiles?.email}</strong>
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="rounded-2xl bg-white/10 border border-white/10 px-3.5 py-2">
-                  <span className="text-[11px] text-slate-300 block">% Gordura</span>
-                  <strong className="font-display text-lg text-emerald-400">
-                    {latestAssessment?.results?.bodyFatPct ?? '16.0'}%
-                  </strong>
-                </div>
-                <div className="rounded-2xl bg-white/10 border border-white/10 px-3.5 py-2">
-                  <span className="text-[11px] text-slate-300 block">Massa Magra</span>
-                  <strong className="font-display text-lg text-indigo-300">
-                    {clientMeta.leanMassKg} kg
-                  </strong>
+
+                <div className="grid grid-cols-3 gap-3 sm:min-w-[360px] shrink-0">
+                  <div className="rounded-2xl bg-white/10 border border-white/10 px-4 py-2.5 flex flex-col justify-center">
+                    <span className="text-[11px] text-slate-300 whitespace-nowrap">Peso Atual</span>
+                    <strong className="font-display font-extrabold text-lg sm:text-xl text-white whitespace-nowrap mt-0.5">
+                      {clientMeta.weightKg} kg
+                    </strong>
+                  </div>
+                  <div className="rounded-2xl bg-white/10 border border-white/10 px-4 py-2.5 flex flex-col justify-center">
+                    <span className="text-[11px] text-slate-300 whitespace-nowrap">% Gordura</span>
+                    <strong className="font-display font-extrabold text-lg sm:text-xl text-emerald-400 whitespace-nowrap mt-0.5">
+                      {latestAssessment?.results?.bodyFatPct ?? '16.0'}%
+                    </strong>
+                  </div>
+                  <div className="rounded-2xl bg-white/10 border border-white/10 px-4 py-2.5 flex flex-col justify-center">
+                    <span className="text-[11px] text-slate-300 whitespace-nowrap">Massa Magra</span>
+                    <strong className="font-display font-extrabold text-lg sm:text-xl text-indigo-300 whitespace-nowrap mt-0.5">
+                      {clientMeta.leanMassKg} kg
+                    </strong>
+                  </div>
                 </div>
               </div>
             </CardContent>

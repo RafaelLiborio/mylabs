@@ -297,7 +297,7 @@ export function AuthPage({ portalRole = 'client' }: { portalRole?: LoginRolePort
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="login-email">E-mail de Acesso ({portal.routePath})</Label>
+                  <Label htmlFor="login-email">E-mail de Acesso</Label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-muted-foreground absolute left-3 top-2.5 pointer-events-none" />
                     <Input

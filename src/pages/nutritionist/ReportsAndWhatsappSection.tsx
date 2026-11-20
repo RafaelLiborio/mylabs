@@ -705,8 +705,8 @@ export function ReportsAndWhatsappSection({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-              <div className="sm:col-span-2 space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 items-start">
+              <div className="sm:col-span-2 flex flex-col gap-1.5">
                 <Label>Cidade</Label>
                 <Input
                   placeholder="Ex: São Paulo"
@@ -714,13 +714,13 @@ export function ReportsAndWhatsappSection({
                   onChange={(e) => setNutriCity(e.target.value)}
                 />
               </div>
-              <div className="space-y-1">
+              <div className="flex flex-col gap-1.5">
                 <Label>Estado (UF) *</Label>
                 <Select value={nutriUf} onValueChange={setNutriUf}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione a UF" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-64">
+                  <SelectContent>
                     {BRAZIL_STATES.map((st) => (
                       <SelectItem key={st.uf} value={st.uf}>
                         {st.uf} — {st.name}
