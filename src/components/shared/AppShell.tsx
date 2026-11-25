@@ -1,5 +1,7 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { LegalLinks } from '@/components/shared/LegalLinks'
+import { PrivacyCenterDialog } from '@/components/shared/PrivacyCenterDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -39,6 +41,7 @@ export function AppShell({
   headerActions?: React.ReactNode
 }) {
   const { profile, signOut } = useAuth()
+  const [privacyOpen, setPrivacyOpen] = useState(false)
   const roleInfo = ROLE_META[profile?.role || 'client'] || ROLE_META.client
   const initials = (profile?.full_name || 'ML')
     .split(' ')
@@ -107,6 +110,10 @@ export function AppShell({
                     )}
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setPrivacyOpen(true)} className="gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>Privacidade e Meus Dados</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={signOut}
                     className="text-destructive focus:text-destructive gap-2"
@@ -130,14 +137,24 @@ export function AppShell({
             <span>•</span>
             <span>Nutrição Baseada em Evidências, Treinos Periodizados & Suporte Integrado</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            <LegalLinks />
+            <button
+              type="button"
+              onClick={() => setPrivacyOpen(true)}
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              Meus dados (LGPD)
+            </button>
             <span className="inline-flex items-center gap-1.5 text-emerald-700 font-medium">
               <Activity className="w-3.5 h-3.5" />
-              Supabase Realtime & Base TACO 4ª Ed. Online
+              Base TACO 4ª Ed. Online
             </span>
           </div>
         </div>
       </footer>
+
+      <PrivacyCenterDialog open={privacyOpen} onOpenChange={setPrivacyOpen} />
     </div>
   )
 }

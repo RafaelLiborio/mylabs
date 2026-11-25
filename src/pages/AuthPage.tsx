@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase, invokeManageUsers, translateErrorPt } from '@/lib/supabase'
 import { PasswordInput } from '@/components/shared/PasswordInput'
+import { LegalLinks } from '@/components/shared/LegalLinks'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -334,6 +335,18 @@ export function AuthPage({ portalRole = 'client' }: { portalRole?: LoginRolePort
                 </Button>
               </form>
 
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Ao entrar, você confirma que leu os{' '}
+                <Link to="/termos" className="underline underline-offset-2 text-foreground">
+                  Termos de Uso
+                </Link>{' '}
+                e a{' '}
+                <Link to="/privacidade" className="underline underline-offset-2 text-foreground">
+                  Política de Privacidade
+                </Link>
+                . No primeiro acesso, você registrará o seu aceite e os consentimentos do seu perfil.
+              </p>
+
               {portalRole === 'nutritionist' && (
                 <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 text-xs text-indigo-950">
                   <strong>Credenciamento de Nutricionistas:</strong> O cadastro de novos nutricionistas é realizado exclusivamente pela equipe de <strong>Suporte / Admin</strong>. Solicite suas credenciais ao administrador da plataforma.
@@ -376,6 +389,10 @@ export function AuthPage({ portalRole = 'client' }: { portalRole?: LoginRolePort
           </Card>
         </div>
       </div>
+
+      <footer className="text-center text-[11px] text-muted-foreground pt-2 pb-1">
+        <LegalLinks /> <span aria-hidden="true">•</span> MyLabs
+      </footer>
     </div>
   )
 }

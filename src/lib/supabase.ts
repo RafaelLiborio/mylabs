@@ -77,7 +77,8 @@ export async function getSignedOrPublicUrl(bucket: string, path: string): Promis
   if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
     return path
   }
-  if (bucket === 'exercise-media' || bucket === 'avatars' || bucket === 'client-diary-photos') {
+  // 'client-diary-photos' (fotos de refeições/treino) contém dados de saúde: bucket PRIVADO, sempre URL assinada.
+  if (bucket === 'exercise-media' || bucket === 'avatars') {
     const { data } = supabase.storage.from(bucket).getPublicUrl(path)
     return data.publicUrl
   }

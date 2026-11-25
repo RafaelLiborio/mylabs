@@ -4,7 +4,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { ConsentGate } from '@/components/shared/ConsentGate'
 import { FlaskConical } from 'lucide-react'
+
+const LegalDocumentPage = lazy(() =>
+  import('@/pages/LegalDocumentPage').then((m) => ({ default: m.LegalDocumentPage })),
+)
 
 const AuthPage = lazy(() => import('@/pages/AuthPage').then((m) => ({ default: m.AuthPage })))
 const ExternalSupportSetupPage = lazy(() =>
@@ -70,7 +75,9 @@ function ProtectedRoute({
   if (!allowedRoles.includes(profile.role)) {
     return <Navigate to="/" replace />
   }
-  return <>{children}</>
+  return (
+    <ConsentGate>{children}</ConsentGate>
+  )
 }
 
 const routerBasename =
@@ -96,6 +103,10 @@ export default function App() {
                 <Route path="/login/suporte" element={<AuthPage portalRole="admin" />} />
 
                 <Route path="/configurar-suporte" element={<ExternalSupportSetupPage />} />
+
+                {/* Documentos legais públicos (acessíveis sem login) */}
+                <Route path="/termos" element={<LegalDocumentPage docId="terms" />} />
+                <Route path="/privacidade" element={<LegalDocumentPage docId="privacy" />} />
 
                 {/* Portal exclusivo do Cliente (isolado de Nutri e Suporte) */}
                 <Route
