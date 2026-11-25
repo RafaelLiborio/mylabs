@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, getSignedOrPublicUrl, translateErrorPt } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { MediaAttachmentPicker, type CapturedMediaFile } from '@/components/shared/MediaAttachmentPicker'
+import { FoodThumb } from '@/components/shared/FoodThumb'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,15 +37,21 @@ import {
   tdee,
 } from '@/domain/energy'
 import { calcFoodPortionMacros, FOOD_GROUP_LABELS, type FoodItemMacro } from '@/domain/nutrition'
+import { WEEKDAYS } from '@/domain/workouts'
 import {
   Apple,
   Calculator,
+  Calendar,
+  CalendarDays,
+  Camera,
   CheckCircle2,
   Clock,
+  Copy,
   Image as ImageIcon,
   Minus,
   Plus,
   Search,
+  Sparkles,
   Trash2,
   Utensils,
 } from 'lucide-react'
@@ -72,6 +79,15 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
   const [attachments, setAttachments] = useState<
     { id: string; storage_path: string; url: string; caption: string; file_name: string }[]
   >([])
+  const [mealPhotoPostsByMealId, setMealPhotoPostsByMealId] = useState<
+    Record<string, { id: string; log_date: string; caption: string; url: string }[]>
+  >({})
+
+  // Weekly / Monthly Planning state
+  const [selectedWeek, setSelectedWeek] = useState<number>(1)
+  // null = Cardápio Base (Todos os Dias), 0..6 = Dom..Sáb
+  const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null)
+  const [replicatingSchedule, setReplicatingSchedule] = useState(false)
 
   // Scientific calculator quick panel state
   const [eqId, setEqId] = useState<EnergyEquationId>('mifflin')
@@ -84,6 +100,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
   const [newMealName, setNewMealName] = useState('Lanche da Tarde')
   const [newMealTime, setNewMealTime] = useState('16:00')
   const [newMealNotes, setNewMealNotes] = useState('')
+  const [newMealTargetScope, setNewMealTargetScope] = useState<'current' | 'all_weekdays' | 'full_month'>('current')
 
   // Add Food modal (TACO + Custom Food)
   const [addFoodOpen, setAddFoodOpen] = useState(false)
@@ -93,7 +110,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
   const [selectedFoodId, setSelectedFoodId] = useState<string>('')
   const [foodGrams, setFoodGrams] = useState<number>(120)
 
-  // Register New Custom Food modal (Page 3 improvement)
+  // Register New Custom Food modal
   const [customFoodOpen, setCustomFoodOpen] = useState(false)
   const [newFoodName, setNewFoodName] = useState('')
   const [newFoodGroup, setNewFoodGroup] = useState<string>('protein')
@@ -101,17 +118,19 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
   const [newFoodCarb, setNewFoodCarb] = useState<number>(5)
   const [newFoodFat, setNewFoodFat] = useState<number>(3)
   const [newFoodFiber, setNewFoodFiber] = useState<number>(1)
+  const [newFoodImageUrl, setNewFoodImageUrl] = useState<string>('')
   const [savingCustomFood, setSavingCustomFood] = useState(false)
 
   // New Diet Plan modal
   const [newPlanOpen, setNewPlanOpen] = useState(false)
   const [newPlanName, setNewPlanName] = useState('Dia de Descanso / Low Carb')
   const [newPlanKind, setNewPlanKind] = useState<'training' | 'rest' | 'standard'>('rest')
+  const [newPlanScope, setNewPlanScope] = useState<'weekly' | 'monthly'>('weekly')
 
   const loadPlansAndFoods = useCallback(async () => {
     if (!clientId) return
     const [{ data: fList }, { data: pList }] = await Promise.all([
-      supabase.from('foods').select('id, name, food_group, protein_g, carb_g, fat_g, fiber_g').order('name'),
+      supabase.from('foods').select('id, name, food_group, protein_g, carb_g, fat_g, fiber_g, image_url').order('name'),
       supabase.from('diet_plans').select('*').eq('client_id', clientId).order('created_at'),
     ])
     const allFoods = (fList as FoodItemMacro[]) || []
@@ -152,12 +171,40 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
         .order('created_at', { ascending: false }),
     ])
 
-    setMeals(
-      (mRows || []).map((m: any) => ({
-        ...m,
-        diet_meal_items: (m.diet_meal_items || []).sort((a: any, b: any) => a.position - b.position),
-      })),
-    )
+    const allMealRows = (mRows || []).map((m: any) => ({
+      ...m,
+      week_number: m.week_number ?? 1,
+      weekday: m.weekday ?? null,
+      diet_meal_items: (m.diet_meal_items || []).sort((a: any, b: any) => a.position - b.position),
+    }))
+    setMeals(allMealRows)
+
+    // Load client meal photo posts for these meals
+    const mealIds = allMealRows.map((m: any) => m.id)
+    if (mealIds.length > 0) {
+      const { data: postRows } = await supabase
+        .from('meal_photo_posts')
+        .select('*')
+        .in('meal_id', mealIds)
+        .order('log_date', { ascending: false })
+        .order('created_at', { ascending: false })
+
+      const grouped: Record<string, { id: string; log_date: string; caption: string; url: string }[]> = {}
+      for (const p of postRows || []) {
+        const url = await getSignedOrPublicUrl('client-diary-photos', p.storage_path)
+        if (!url) continue
+        if (!grouped[p.meal_id]) grouped[p.meal_id] = []
+        grouped[p.meal_id].push({
+          id: p.id,
+          log_date: p.log_date,
+          caption: p.caption || 'Registro fotográfico da refeição',
+          url,
+        })
+      }
+      setMealPhotoPostsByMealId(grouped)
+    } else {
+      setMealPhotoPostsByMealId({})
+    }
 
     const resolved = await Promise.all(
       (aRows || []).map(async (a: any) => ({
@@ -181,6 +228,189 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
     () => plans.find((p) => p.id === selectedPlanId) || plans[0] || null,
     [plans, selectedPlanId],
   )
+
+  const planningScope: 'weekly' | 'monthly' = useMemo(() => {
+    if (activePlan?.planning_scope === 'monthly') return 'monthly'
+    if (meals.some((m) => (m.week_number ?? 1) > 1)) return 'monthly'
+    return 'weekly'
+  }, [activePlan, meals])
+
+  // Determine which meals are displayed for the active (selectedWeek, selectedWeekday)
+  const { displayedMeals, isInheritingFromBase } = useMemo(() => {
+    // Direct matches for (selectedWeek, selectedWeekday)
+    const exactMatches = meals.filter(
+      (m) => (m.week_number ?? 1) === selectedWeek && (m.weekday ?? null) === selectedWeekday,
+    )
+    if (exactMatches.length > 0) {
+      return { displayedMeals: exactMatches, isInheritingFromBase: false }
+    }
+
+    // If a specific weekday is selected (0..6) and has no custom rows yet, fall back to base meals of that week (or Week 1 base meals)
+    const weekBaseMatches = meals.filter(
+      (m) => (m.week_number ?? 1) === selectedWeek && (m.weekday ?? null) === null,
+    )
+    if (weekBaseMatches.length > 0) {
+      return { displayedMeals: weekBaseMatches, isInheritingFromBase: selectedWeekday !== null }
+    }
+
+    const week1BaseMatches = meals.filter(
+      (m) => (m.week_number ?? 1) === 1 && (m.weekday ?? null) === null,
+    )
+    return {
+      displayedMeals: week1BaseMatches,
+      isInheritingFromBase: selectedWeekday !== null || selectedWeek > 1,
+    }
+  }, [meals, selectedWeek, selectedWeekday])
+
+  // Helper to change planning scope (Semanal vs Mês Inteiro)
+  const handleChangePlanningScope = async (nextScope: 'weekly' | 'monthly') => {
+    if (!activePlan) return
+    const weeksCount = nextScope === 'monthly' ? 4 : 1
+    setPlans((prev) =>
+      prev.map((p) =>
+        p.id === activePlan.id ? { ...p, planning_scope: nextScope, weeks_count: weeksCount } : p,
+      ),
+    )
+    if (nextScope === 'weekly') {
+      setSelectedWeek(1)
+    }
+    const { error } = await supabase
+      .from('diet_plans')
+      .update({ planning_scope: nextScope, weeks_count: weeksCount })
+      .eq('id', activePlan.id)
+    if (error) {
+      toast.error(translateErrorPt(error))
+      return
+    }
+    toast.success(
+      nextScope === 'monthly'
+        ? 'Modo Planejamento Mensal (4 Semanas) ativado!'
+        : 'Modo Planejamento Semanal (Seg a Dom) ativado!',
+    )
+  }
+
+  // Clone helper: copies a list of source meals (and their diet_meal_items) into target (week, weekday) slots
+  const cloneMealsToTargets = async (
+    sourceMeals: any[],
+    targets: { week_number: number; weekday: number | null }[],
+  ) => {
+    if (!activePlan || sourceMeals.length === 0) return
+    for (const target of targets) {
+      // Remove existing meals in target slot first to avoid duplicates
+      let delQuery = supabase
+        .from('diet_meals')
+        .delete()
+        .eq('plan_id', activePlan.id)
+        .eq('week_number', target.week_number)
+      if (target.weekday === null) {
+        delQuery = delQuery.is('weekday', null)
+      } else {
+        delQuery = delQuery.eq('weekday', target.weekday)
+      }
+      await delQuery
+
+      for (const sm of sourceMeals) {
+        const { data: createdMeal } = await supabase
+          .from('diet_meals')
+          .insert({
+            plan_id: activePlan.id,
+            name: sm.name,
+            meal_time: sm.meal_time,
+            position: sm.position,
+            notes: sm.notes,
+            week_number: target.week_number,
+            weekday: target.weekday,
+          })
+          .select('id')
+          .single()
+
+        if (createdMeal && (sm.diet_meal_items || []).length > 0) {
+          const itemsPayload = sm.diet_meal_items.map((it: any, idx: number) => ({
+            meal_id: createdMeal.id,
+            food_id: it.food_id,
+            grams: Number(it.grams),
+            position: idx + 1,
+          }))
+          await supabase.from('diet_meal_items').insert(itemsPayload)
+        }
+      }
+    }
+  }
+
+  const handleCustomizeCurrentDayFromBase = async () => {
+    if (!activePlan || selectedWeekday === null) return
+    setReplicatingSchedule(true)
+    try {
+      await cloneMealsToTargets(displayedMeals, [
+        { week_number: selectedWeek, weekday: selectedWeekday },
+      ])
+      const wdLabel = WEEKDAYS.find((w) => w.id === selectedWeekday)?.full || 'Dia'
+      toast.success(`Cardápio personalizado criado para ${wdLabel} (Semana ${selectedWeek})!`)
+      await loadMealsAndAttachments(activePlan.id)
+    } catch (err: any) {
+      toast.error(translateErrorPt(err))
+    } finally {
+      setReplicatingSchedule(false)
+    }
+  }
+
+  const handleReplicateToFullWeek = async () => {
+    if (!activePlan || displayedMeals.length === 0) return
+    setReplicatingSchedule(true)
+    try {
+      const targets = WEEKDAYS.filter((w) => w.id !== selectedWeekday).map((w) => ({
+        week_number: selectedWeek,
+        weekday: w.id,
+      }))
+      if (selectedWeekday === null) {
+        // Replicate base menu to all 7 days of selectedWeek
+        await cloneMealsToTargets(
+          displayedMeals,
+          WEEKDAYS.map((w) => ({ week_number: selectedWeek, weekday: w.id })),
+        )
+      } else {
+        await cloneMealsToTargets(displayedMeals, targets)
+      }
+      toast.success(
+        `Planejamento replicado para todos os 7 dias da Semana ${selectedWeek} (Seg a Dom)!`,
+      )
+      await loadMealsAndAttachments(activePlan.id)
+    } catch (err: any) {
+      toast.error(translateErrorPt(err))
+    } finally {
+      setReplicatingSchedule(false)
+    }
+  }
+
+  const handleReplicateToFullMonth = async () => {
+    if (!activePlan || displayedMeals.length === 0) return
+    setReplicatingSchedule(true)
+    try {
+      await supabase
+        .from('diet_plans')
+        .update({ planning_scope: 'monthly', weeks_count: 4 })
+        .eq('id', activePlan.id)
+      setPlans((prev) =>
+        prev.map((p) =>
+          p.id === activePlan.id ? { ...p, planning_scope: 'monthly', weeks_count: 4 } : p,
+        ),
+      )
+
+      // Copy current displayedMeals into weeks 1..4 for the current weekday (or base slot)
+      const targets: { week_number: number; weekday: number | null }[] = []
+      for (let wk = 1; wk <= 4; wk++) {
+        if (wk === selectedWeek && !isInheritingFromBase) continue
+        targets.push({ week_number: wk, weekday: selectedWeekday })
+      }
+      await cloneMealsToTargets(displayedMeals, targets)
+      toast.success('Planejamento replicado para as 4 semanas do mês inteiro!')
+      await loadMealsAndAttachments(activePlan.id)
+    } catch (err: any) {
+      toast.error(translateErrorPt(err))
+    } finally {
+      setReplicatingSchedule(false)
+    }
+  }
 
   // IDs of foods already included in the active target meal card (prevents duplicates in same card, allows in other cards)
   const existingFoodIdsInTargetMeal = useMemo(() => {
@@ -244,6 +474,8 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
         nutritionist_id: profile.id,
         name: newPlanName.trim() || 'Novo Protocolo Alimentar',
         kind: newPlanKind,
+        planning_scope: newPlanScope,
+        weeks_count: newPlanScope === 'monthly' ? 4 : 1,
         kcal_target: scientificCalc.kcal,
         protein_target_g: scientificCalc.proteinG,
         carb_target_g: scientificCalc.carbG,
@@ -259,9 +491,9 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
     }
 
     await supabase.from('diet_meals').insert([
-      { plan_id: data.id, name: 'Café da Manhã', meal_time: '07:30', position: 1 },
-      { plan_id: data.id, name: 'Almoço', meal_time: '12:30', position: 2 },
-      { plan_id: data.id, name: 'Jantar', meal_time: '20:00', position: 3 },
+      { plan_id: data.id, name: 'Café da Manhã', meal_time: '07:30', position: 1, week_number: 1, weekday: null },
+      { plan_id: data.id, name: 'Almoço', meal_time: '12:30', position: 2, week_number: 1, weekday: null },
+      { plan_id: data.id, name: 'Jantar', meal_time: '20:00', position: 3, week_number: 1, weekday: null },
     ])
 
     toast.success('Novo plano alimentar criado!')
@@ -272,18 +504,72 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
 
   const handleAddMeal = async () => {
     if (!activePlan) return
-    const { error } = await supabase.from('diet_meals').insert({
-      plan_id: activePlan.id,
-      name: newMealName.trim() || 'Refeição',
-      meal_time: newMealTime || '12:00',
-      position: meals.length + 1,
-      notes: newMealNotes.trim() || null,
-    })
+    const cleanName = newMealName.trim() || 'Refeição'
+    const cleanTime = newMealTime || '12:00'
+    const cleanNotes = newMealNotes.trim() || null
+
+    // If current day was inheriting from base and user adds a meal to 'current', materialize current day first
+    if (newMealTargetScope === 'current' && isInheritingFromBase && selectedWeekday !== null) {
+      await cloneMealsToTargets(displayedMeals, [
+        { week_number: selectedWeek, weekday: selectedWeekday },
+      ])
+    }
+
+    let rowsToInsert: any[] = []
+    if (newMealTargetScope === 'current') {
+      rowsToInsert = [
+        {
+          plan_id: activePlan.id,
+          name: cleanName,
+          meal_time: cleanTime,
+          position: displayedMeals.length + 1,
+          notes: cleanNotes,
+          week_number: selectedWeek,
+          weekday: selectedWeekday,
+        },
+      ]
+    } else if (newMealTargetScope === 'all_weekdays') {
+      rowsToInsert = [
+        {
+          plan_id: activePlan.id,
+          name: cleanName,
+          meal_time: cleanTime,
+          position: displayedMeals.length + 1,
+          notes: cleanNotes,
+          week_number: selectedWeek,
+          weekday: null,
+        },
+        ...WEEKDAYS.map((w) => ({
+          plan_id: activePlan.id,
+          name: cleanName,
+          meal_time: cleanTime,
+          position: displayedMeals.length + 1,
+          notes: cleanNotes,
+          week_number: selectedWeek,
+          weekday: w.id,
+        })),
+      ]
+    } else {
+      // full_month (weeks 1..4)
+      for (let wk = 1; wk <= 4; wk++) {
+        rowsToInsert.push({
+          plan_id: activePlan.id,
+          name: cleanName,
+          meal_time: cleanTime,
+          position: displayedMeals.length + 1,
+          notes: cleanNotes,
+          week_number: wk,
+          weekday: selectedWeekday,
+        })
+      }
+    }
+
+    const { error } = await supabase.from('diet_meals').insert(rowsToInsert)
     if (error) {
       toast.error(translateErrorPt(error))
       return
     }
-    toast.success('Refeição adicionada ao plano!')
+    toast.success('Refeição adicionada ao planejamento!')
     setNewMealOpen(false)
     setNewMealNotes('')
     loadMealsAndAttachments(activePlan.id)
@@ -339,10 +625,11 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
           carb_g: Math.max(0, Number(newFoodCarb) || 0),
           fat_g: Math.max(0, Number(newFoodFat) || 0),
           fiber_g: Math.max(0, Number(newFoodFiber) || 0),
+          image_url: newFoodImageUrl.trim() || null,
           source: 'personalizado',
           owner_id: profile.id,
         })
-        .select('id, name, food_group, protein_g, carb_g, fat_g, fiber_g')
+        .select('id, name, food_group, protein_g, carb_g, fat_g, fiber_g, image_url')
         .single()
 
       if (error || !data) throw error || new Error('Erro ao cadastrar alimento.')
@@ -354,6 +641,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
       setFoodSearch('')
       setCustomFoodOpen(false)
       setNewFoodName('')
+      setNewFoodImageUrl('')
     } catch (err: any) {
       toast.error(translateErrorPt(err))
     } finally {
@@ -413,12 +701,13 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
     loadMealsAndAttachments(activePlan.id)
   }
 
+  // Totals computed for the currently displayed day/week view
   const totals = useMemo(() => {
     let p = 0
     let c = 0
     let g = 0
     let kcal = 0
-    for (const m of meals) {
+    for (const m of displayedMeals) {
       for (const it of m.diet_meal_items || []) {
         if (it.foods) {
           const mac = calcFoodPortionMacros(it.foods, Number(it.grams))
@@ -430,7 +719,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
       }
     }
     return { p: Math.round(p), c: Math.round(c), g: Math.round(g), kcal: Math.round(kcal) }
-  }, [meals])
+  }, [displayedMeals])
 
   const filteredFoods = useMemo(() => {
     return foods.filter((f) => {
@@ -444,6 +733,14 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
     () => foods.find((f) => f.id === selectedFoodId) || filteredFoods[0] || null,
     [foods, selectedFoodId, filteredFoods],
   )
+
+  const currentScopeLabel = useMemo(() => {
+    const wdLabel =
+      selectedWeekday === null
+        ? 'Cardápio Base (Todos os Dias)'
+        : WEEKDAYS.find((w) => w.id === selectedWeekday)?.full || 'Dia'
+    return planningScope === 'monthly' ? `Semana ${selectedWeek} • ${wdLabel}` : wdLabel
+  }, [planningScope, selectedWeek, selectedWeekday])
 
   return (
     <div className="space-y-5">
@@ -567,7 +864,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
         </CardContent>
       </Card>
 
-      {/* 2. Seletor de Plano Alimentar, Cadastro de Novo Alimento, Progresso de Macros e Anexos / Câmera */}
+      {/* 2. Seletor de Plano Alimentar, Planejamento Semanal/Mensal, Cadastro de Novo Alimento, Progresso de Macros e Anexos */}
       <Card className="rounded-2xl">
         <CardHeader className="pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -630,6 +927,165 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
 
         {activePlan && (
           <CardContent className="space-y-4">
+            {/* Painel de Planejamento da Dieta: Semana Inteira ou Mês Inteiro (4 Semanas) */}
+            <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50/50 via-white to-emerald-50/30 p-4 space-y-3">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="bg-emerald-600 text-white gap-1">
+                      <CalendarDays className="w-3.5 h-3.5" />
+                      <span>Planejamento de Dieta Semanal ou Mensal</span>
+                    </Badge>
+                    <Badge variant="outline" className="border-emerald-300 text-emerald-900">
+                      Visualizando: {currentScopeLabel}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Monte um cardápio base para todos os dias ou personalize por dia da semana (Seg a Dom) e por semana do mês (Semanas 1 a 4).
+                  </p>
+                </div>
+
+                {/* Alternador Semanal vs Mês Inteiro + Ações de Replicação */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={planningScope === 'weekly' ? 'default' : 'outline'}
+                    onClick={() => handleChangePlanningScope('weekly')}
+                    className={`h-8 text-xs gap-1.5 ${
+                      planningScope === 'weekly' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''
+                    }`}
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Planejamento Semanal</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={planningScope === 'monthly' ? 'default' : 'outline'}
+                    onClick={() => handleChangePlanningScope('monthly')}
+                    className={`h-8 text-xs gap-1.5 ${
+                      planningScope === 'monthly' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''
+                    }`}
+                  >
+                    <CalendarDays className="w-3.5 h-3.5" />
+                    <span>Mês Inteiro (4 Semanas)</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={replicatingSchedule || displayedMeals.length === 0}
+                    onClick={handleReplicateToFullWeek}
+                    className="h-8 text-xs gap-1"
+                    title="Copia as refeições atuais para todos os dias da semana (Seg a Dom)"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Replicar p/ Semana Inteira</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={replicatingSchedule || displayedMeals.length === 0}
+                    onClick={handleReplicateToFullMonth}
+                    className="h-8 text-xs gap-1"
+                    title="Copia as refeições atuais para as 4 semanas do mês"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Replicar p/ Mês Inteiro</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Seletor de Semanas do Mês (quando Planejamento Mensal está ativo) */}
+              {planningScope === 'monthly' && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-emerald-200/60">
+                  <span className="text-xs font-semibold text-emerald-950 mr-1">Semana do Mês:</span>
+                  {[1, 2, 3, 4].map((wk) => {
+                    const weekMealCount = meals.filter((m) => (m.week_number ?? 1) === wk).length
+                    return (
+                      <Button
+                        key={wk}
+                        type="button"
+                        size="sm"
+                        variant={selectedWeek === wk ? 'default' : 'outline'}
+                        onClick={() => setSelectedWeek(wk)}
+                        className={`h-8 text-xs ${
+                          selectedWeek === wk ? 'bg-emerald-700 hover:bg-emerald-800 text-white' : 'bg-white'
+                        }`}
+                      >
+                        Semana {wk} ({weekMealCount || displayedMeals.length} ref.)
+                      </Button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Seletor de Dia da Semana (Cardápio Base + Seg..Dom) */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={selectedWeekday === null ? 'default' : 'outline'}
+                  onClick={() => setSelectedWeekday(null)}
+                  className={`h-8 text-xs ${
+                    selectedWeekday === null
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      : 'bg-white'
+                  }`}
+                >
+                  Cardápio Base (Todos os Dias)
+                </Button>
+                {WEEKDAYS.map((wd) => {
+                  const customCount = meals.filter(
+                    (m) => (m.week_number ?? 1) === selectedWeek && m.weekday === wd.id,
+                  ).length
+                  const isSel = selectedWeekday === wd.id
+                  return (
+                    <Button
+                      key={wd.id}
+                      type="button"
+                      size="sm"
+                      variant={isSel ? 'default' : customCount > 0 ? 'secondary' : 'outline'}
+                      onClick={() => setSelectedWeekday(wd.id)}
+                      className={`h-8 text-xs ${
+                        isSel ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-white'
+                      }`}
+                    >
+                      <span>{wd.short}</span>
+                      {customCount > 0 && (
+                        <Badge className="ml-1 bg-emerald-100 text-emerald-900 px-1 py-0 text-[10px]">
+                          {customCount}
+                        </Badge>
+                      )}
+                    </Button>
+                  )
+                })}
+              </div>
+
+              {isInheritingFromBase && selectedWeekday !== null && (
+                <div className="rounded-xl bg-amber-50/80 border border-amber-200 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="text-amber-950">
+                    Este dia (<strong>{WEEKDAYS.find((w) => w.id === selectedWeekday)?.full}</strong>) está seguindo o{' '}
+                    <strong>Cardápio Base</strong>. Deseja criar variações exclusivas para este dia?
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={replicatingSchedule}
+                    onClick={handleCustomizeCurrentDayFromBase}
+                    className="h-7 text-xs border-amber-400 bg-white text-amber-950 hover:bg-amber-100"
+                  >
+                    Personalizar {WEEKDAYS.find((w) => w.id === selectedWeekday)?.short} a partir do Base
+                  </Button>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="rounded-xl border border-border p-3 space-y-1">
                 <span className="text-xs text-muted-foreground">Calorias Prescritas</span>
@@ -723,9 +1179,9 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
         )}
       </Card>
 
-      {/* 3. Cards de Refeições do Plano */}
+      {/* 3. Cards de Refeições do Plano (Com Imagem Ilustrativa em cada Alimento + Fotos Postadas pelo Cliente) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {meals.map((meal) => {
+        {displayedMeals.map((meal) => {
           const mealTotals = (meal.diet_meal_items || []).reduce(
             (acc: any, it: any) => {
               if (!it.foods) return acc
@@ -734,17 +1190,23 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
             },
             { p: 0, c: 0, g: 0, kcal: 0 },
           )
+          const clientPhotos = mealPhotoPostsByMealId[meal.id] || []
 
           return (
             <Card key={meal.id} className="rounded-2xl">
               <CardHeader className="pb-3 flex flex-row items-start justify-between gap-2">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <CardTitle className="font-display text-base">{meal.name}</CardTitle>
                     {meal.meal_time && (
                       <Badge variant="secondary" className="gap-1 text-[11px]">
                         <Clock className="w-3 h-3" />
                         {String(meal.meal_time).slice(0, 5)}
+                      </Badge>
+                    )}
+                    {meal.weekday !== null && meal.weekday !== undefined && (
+                      <Badge variant="outline" className="text-[10px] border-emerald-300 text-emerald-800">
+                        {WEEKDAYS.find((w) => w.id === meal.weekday)?.short} • Sem {meal.week_number || 1}
                       </Badge>
                     )}
                   </div>
@@ -761,7 +1223,6 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
                     variant="outline"
                     onClick={() => {
                       setTargetMealId(meal.id)
-                      // Pre-select first food not yet in this meal card
                       const usedIds = new Set((meal.diet_meal_items || []).map((x: any) => String(x.food_id)))
                       const firstAvailable = foods.find((f) => !usedIds.has(f.id))
                       if (firstAvailable) setSelectedFoodId(firstAvailable.id)
@@ -785,7 +1246,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
                 </div>
               </CardHeader>
 
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-2.5">
                 {(meal.diet_meal_items || []).map((it: any) => {
                   const food = it.foods as FoodItemMacro | undefined
                   if (!food) return null
@@ -795,10 +1256,18 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
                       key={it.id}
                       className="rounded-xl border border-border p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs"
                     >
-                      <div className="min-w-[140px]">
-                        <div className="font-semibold text-foreground">{food.name}</div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {mac.kcal} kcal • P: {mac.p}g • C: {mac.c}g • G: {mac.g}g
+                      <div className="flex items-center gap-2.5 min-w-[160px] flex-1">
+                        <FoodThumb
+                          name={food.name}
+                          foodGroup={food.food_group}
+                          imageUrl={food.image_url}
+                          size="md"
+                        />
+                        <div className="min-w-0">
+                          <div className="font-semibold text-foreground truncate">{food.name}</div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {mac.kcal} kcal • P: {mac.p}g • C: {mac.c}g • G: {mac.g}g
+                          </div>
                         </div>
                       </div>
 
@@ -837,13 +1306,43 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
                     </div>
                   )
                 })}
+
+                {/* Fotos postadas pelo cliente nesta refeição ao longo dos dias */}
+                {clientPhotos.length > 0 && (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-2.5 space-y-2 mt-2">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-emerald-950">
+                      <span className="flex items-center gap-1.5">
+                        <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                        Fotos Postadas pelo Paciente ({clientPhotos.length})
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {clientPhotos.slice(0, 6).map((cp) => (
+                        <div
+                          key={cp.id}
+                          className="rounded-lg border border-border bg-white overflow-hidden shadow-2xs"
+                        >
+                          <img src={cp.url} alt={cp.caption} className="h-20 w-full object-cover" />
+                          <div className="p-1.5">
+                            <span className="text-[10px] font-bold text-emerald-700 block">
+                              {cp.log_date}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground truncate block">
+                              {cp.caption}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )
         })}
       </div>
 
-      {/* Modal: Adicionar Alimento TACO (Bloqueia duplicata na mesma refeição + Botão Cadastrar Novo Alimento) */}
+      {/* Modal: Adicionar Alimento TACO (Com imagem ilustrativa em cada alimento) */}
       <Dialog open={addFoodOpen} onOpenChange={setAddFoodOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
@@ -906,7 +1405,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
                     onClick={() => {
                       if (!alreadyInThisMeal) setSelectedFoodId(f.id)
                     }}
-                    className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between text-xs transition ${
+                    className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-2.5 text-xs transition ${
                       alreadyInThisMeal
                         ? 'bg-muted/60 text-muted-foreground opacity-60 cursor-not-allowed'
                         : isSelected
@@ -914,19 +1413,27 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
                           : 'hover:bg-muted/50'
                     }`}
                   >
-                    <div>
-                      <div>{f.name}</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {FOOD_GROUP_LABELS[f.food_group] || f.food_group} • Por 100g: P {f.protein_g}g | C{' '}
-                        {f.carb_g}g | G {f.fat_g}g
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <FoodThumb
+                        name={f.name}
+                        foodGroup={f.food_group}
+                        imageUrl={f.image_url}
+                        size="sm"
+                      />
+                      <div className="min-w-0">
+                        <div className="truncate">{f.name}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {FOOD_GROUP_LABELS[f.food_group] || f.food_group} • Por 100g: P {f.protein_g}g | C{' '}
+                          {f.carb_g}g | G {f.fat_g}g
+                        </div>
                       </div>
                     </div>
                     {alreadyInThisMeal ? (
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge variant="outline" className="text-[10px] shrink-0">
                         Já incluído neste card
                       </Badge>
                     ) : isSelected ? (
-                      <Badge className="bg-emerald-600 text-white">Selecionado</Badge>
+                      <Badge className="bg-emerald-600 text-white shrink-0">Selecionado</Badge>
                     ) : null}
                   </button>
                 )
@@ -968,12 +1475,20 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
                 {(() => {
                   const preview = calcFoodPortionMacros(selectedFoodObj, foodGrams)
                   return (
-                    <div className="text-xs space-y-0.5">
-                      <div className="font-bold text-foreground">
-                        {selectedFoodObj.name} ({foodGrams}g)
-                      </div>
-                      <div className="text-emerald-700 font-semibold">
-                        {preview.kcal} kcal • P: {preview.p}g • C: {preview.c}g • G: {preview.g}g
+                    <div className="flex items-center gap-2.5 text-xs">
+                      <FoodThumb
+                        name={selectedFoodObj.name}
+                        foodGroup={selectedFoodObj.food_group}
+                        imageUrl={selectedFoodObj.image_url}
+                        size="lg"
+                      />
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-foreground">
+                          {selectedFoodObj.name} ({foodGrams}g)
+                        </div>
+                        <div className="text-emerald-700 font-semibold">
+                          {preview.kcal} kcal • P: {preview.p}g • C: {preview.c}g • G: {preview.g}g
+                        </div>
                       </div>
                     </div>
                   )
@@ -1011,36 +1526,56 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
               <span>Cadastrar Novo Alimento</span>
             </DialogTitle>
             <DialogDescription>
-              Informe a composição nutricional por 100g. O alimento ficará disponível imediatamente para prescrição e substituições equivalentes.
+              Informe a composição nutricional por 100g. O alimento terá imagem ilustrativa automática ou personalizada.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleCreateCustomFood} className="space-y-3.5">
-            <div className="space-y-1.5">
-              <Label htmlFor="new-food-name">Nome do Alimento *</Label>
-              <Input
-                id="new-food-name"
-                required
-                placeholder="Ex: Crepioca Proteica ou Queijo Minas Light"
-                value={newFoodName}
-                onChange={(e) => setNewFoodName(e.target.value)}
+            <div className="flex items-center gap-3">
+              <FoodThumb
+                name={newFoodName || 'Alimento'}
+                foodGroup={newFoodGroup}
+                imageUrl={newFoodImageUrl}
+                size="lg"
               />
+              <div className="space-y-1.5 flex-1">
+                <Label htmlFor="new-food-name">Nome do Alimento *</Label>
+                <Input
+                  id="new-food-name"
+                  required
+                  placeholder="Ex: Crepioca Proteica ou Queijo Minas Light"
+                  value={newFoodName}
+                  onChange={(e) => setNewFoodName(e.target.value)}
+                />
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Grupo Alimentar *</Label>
-              <Select value={newFoodGroup} onValueChange={setNewFoodGroup}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(FOOD_GROUP_LABELS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
-                      {v}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-end">
+              <div className="space-y-1.5">
+                <Label>Grupo Alimentar *</Label>
+                <Select value={newFoodGroup} onValueChange={setNewFoodGroup}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(FOOD_GROUP_LABELS).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>
+                        {v}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="new-food-img">URL de Imagem (Opcional)</Label>
+                <Input
+                  id="new-food-img"
+                  placeholder="https://... (ou automático)"
+                  value={newFoodImageUrl}
+                  onChange={(e) => setNewFoodImageUrl(e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-end">
@@ -1115,21 +1650,38 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Nova Refeição */}
+      {/* Modal: Nova Refeição (Com opção de adicionar ao Dia Atual, Semana Inteira ou Mês Inteiro) */}
       <Dialog open={newMealOpen} onOpenChange={setNewMealOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display">Criar Nova Refeição</DialogTitle>
-            <DialogDescription>Adicione um horário de refeição ao protocolo ativo.</DialogDescription>
+            <DialogDescription>
+              Adicione uma refeição ao dia atual ({currentScopeLabel}), à semana inteira ou ao mês inteiro.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
               <Label>Nome da Refeição</Label>
               <Input value={newMealName} onChange={(e) => setNewMealName(e.target.value)} />
             </div>
-            <div className="space-y-1">
-              <Label>Horário Sugerido</Label>
-              <Input type="time" value={newMealTime} onChange={(e) => setNewMealTime(e.target.value)} />
+            <div className="grid grid-cols-2 gap-2.5 items-end">
+              <div className="space-y-1">
+                <Label>Horário Sugerido</Label>
+                <Input type="time" value={newMealTime} onChange={(e) => setNewMealTime(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Aplicar no Planejamento</Label>
+                <Select value={newMealTargetScope} onValueChange={(v) => setNewMealTargetScope(v as any)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="current">Visualização Atual ({currentScopeLabel})</SelectItem>
+                    <SelectItem value="all_weekdays">Semana Inteira (Seg a Dom)</SelectItem>
+                    <SelectItem value="full_month">Mês Inteiro (4 Semanas)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="space-y-1">
               <Label>Orientação Clínica</Label>
@@ -1158,7 +1710,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
           <DialogHeader>
             <DialogTitle className="font-display">Criar Novo Protocolo Alimentar</DialogTitle>
             <DialogDescription>
-              Crie variações como Dia de Treino, Dia de Descanso ou Carb Cycling.
+              Escolha o tipo de protocolo e se o planejamento será semanal ou mensal (4 semanas).
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -1166,18 +1718,32 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
               <Label>Nome do Protocolo</Label>
               <Input value={newPlanName} onChange={(e) => setNewPlanName(e.target.value)} />
             </div>
-            <div className="space-y-1">
-              <Label>Tipo de Dia</Label>
-              <Select value={newPlanKind} onValueChange={(v) => setNewPlanKind(v as any)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="training">Dia de Treino</SelectItem>
-                  <SelectItem value="rest">Dia de Descanso</SelectItem>
-                  <SelectItem value="standard">Protocolo Padrão</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-end">
+              <div className="space-y-1">
+                <Label>Tipo de Dia</Label>
+                <Select value={newPlanKind} onValueChange={(v) => setNewPlanKind(v as any)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="training">Dia de Treino</SelectItem>
+                    <SelectItem value="rest">Dia de Descanso</SelectItem>
+                    <SelectItem value="standard">Protocolo Padrão</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Horizonte de Planejamento</Label>
+                <Select value={newPlanScope} onValueChange={(v) => setNewPlanScope(v as any)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Planejamento Semanal</SelectItem>
+                    <SelectItem value="monthly">Mês Inteiro (4 Semanas)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter>

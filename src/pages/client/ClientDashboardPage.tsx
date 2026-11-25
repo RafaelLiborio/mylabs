@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { supabase, getSignedOrPublicUrl } from '@/lib/supabase'
+import { supabase, getSignedOrPublicUrl, translateErrorPt } from '@/lib/supabase'
 import { AppShell } from '@/components/shared/AppShell'
 import { ExercisePreview } from '@/components/shared/ExercisePreview'
+import { FoodThumb } from '@/components/shared/FoodThumb'
+import { MediaAttachmentPicker, type CapturedMediaFile } from '@/components/shared/MediaAttachmentPicker'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -45,8 +47,11 @@ import {
   Activity,
   ArrowLeftRight,
   Calendar,
+  CalendarDays,
+  Camera,
   Check,
   CheckCircle2,
+  ClipboardCheck,
   Copy,
   Droplets,
   Dumbbell,
@@ -59,6 +64,7 @@ import {
   ShieldAlert,
   Sparkles,
   Stethoscope,
+  Trash2,
   TrendingDown,
   Utensils,
 } from 'lucide-react'
@@ -73,6 +79,14 @@ import {
   YAxis,
 } from 'recharts'
 import { toast } from 'sonner'
+
+export interface ClientDiaryPhoto {
+  id: string
+  log_date: string
+  storage_path: string
+  caption: string
+  url: string
+}
 
 export function ClientDashboardPage() {
   const { profile } = useAuth()
@@ -93,6 +107,13 @@ export function ClientDashboardPage() {
   const [completedMealIds, setCompletedMealIds] = useState<Set<string>>(new Set())
   const [waterMl, setWaterMl] = useState<number>(0)
 
+  // Diet Weekly / Monthly navigation for client
+  const [dietWeek, setDietWeek] = useState<number>(1)
+  const [dietWeekday, setDietWeekday] = useState<number | null>(() => new Date().getDay())
+
+  // Client Meal Photo Posts (by meal_id across days)
+  const [mealPhotosByMealId, setMealPhotosByMealId] = useState<Record<string, ClientDiaryPhoto[]>>({})
+
   // Swap modal state
   const [swapOpen, setSwapOpen] = useState(false)
   const [swapItem, setSwapItem] = useState<{ id: string; grams: number; food: FoodItemMacro } | null>(null)
@@ -102,7 +123,11 @@ export function ClientDashboardPage() {
   const [workoutDays, setWorkoutDays] = useState<any[]>([])
   const [selectedWeek, setSelectedWeek] = useState<number>(1)
   const [selectedWeekday, setSelectedWeekday] = useState<number>(1)
-  const [workoutLogsByExId, setWorkoutLogsByExId] = useState<Record<string, { completed: boolean; load_kg: number; reps: number }>>({})
+  const [workoutLogsByExId, setWorkoutLogsByExId] = useState<
+    Record<string, { completed: boolean; load_kg: number; reps: number }>
+  >({})
+  const [workoutPhotosByDayId, setWorkoutPhotosByDayId] = useState<Record<string, ClientDiaryPhoto[]>>({})
+  const [togglingAllExercises, setTogglingAllExercises] = useState(false)
 
   // Anthropometry & quick weight check-in state
   const [assessments, setAssessments] = useState<any[]>([])
@@ -118,6 +143,34 @@ export function ClientDashboardPage() {
   const [sendingSupport, setSendingSupport] = useState(false)
 
   const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), [])
+
+  const loadWorkoutDayPhotos = useCallback(async (dayIds: string[]) => {
+    if (dayIds.length === 0) {
+      setWorkoutPhotosByDayId({})
+      return
+    }
+    const { data: rows } = await supabase
+      .from('workout_day_photos')
+      .select('*')
+      .in('workout_day_id', dayIds)
+      .order('log_date', { ascending: false })
+      .order('created_at', { ascending: false })
+
+    const grouped: Record<string, ClientDiaryPhoto[]> = {}
+    for (const r of rows || []) {
+      const url = await getSignedOrPublicUrl('client-diary-photos', r.storage_path)
+      if (!url) continue
+      if (!grouped[r.workout_day_id]) grouped[r.workout_day_id] = []
+      grouped[r.workout_day_id].push({
+        id: r.id,
+        log_date: r.log_date,
+        storage_path: r.storage_path,
+        caption: r.caption || 'Foto do treino do dia',
+        url,
+      })
+    }
+    setWorkoutPhotosByDayId(grouped)
+  }, [])
 
   const loadClientData = useCallback(async () => {
     if (!profile?.id) return
@@ -136,15 +189,30 @@ export function ClientDashboardPage() {
         { data: supReqs },
       ] = await Promise.all([
         supabase.from('clients').select('*').eq('id', profile.id).maybeSingle(),
-        supabase.from('foods').select('id, name, food_group, protein_g, carb_g, fat_g, fiber_g').order('name'),
+        supabase.from('foods').select('id, name, food_group, protein_g, carb_g, fat_g, fiber_g, image_url').order('name'),
         supabase.from('app_settings').select('key, value').eq('key', 'support_whatsapp').maybeSingle(),
         supabase.from('diet_plans').select('*').eq('client_id', profile.id).eq('active', true).order('created_at'),
         supabase.from('water_logs').select('ml').eq('client_id', profile.id).eq('log_date', todayIso).maybeSingle(),
         supabase.from('meal_logs').select('meal_id, completed').eq('client_id', profile.id).eq('log_date', todayIso),
-        supabase.from('workout_plans').select('*').eq('client_id', profile.id).eq('active', true).order('created_at', { ascending: false }).limit(1),
-        supabase.from('anthropometry_assessments').select('*').eq('client_id', profile.id).order('assessed_at', { ascending: true }),
+        supabase
+          .from('workout_plans')
+          .select('*')
+          .eq('client_id', profile.id)
+          .eq('active', true)
+          .order('created_at', { ascending: false })
+          .limit(1),
+        supabase
+          .from('anthropometry_assessments')
+          .select('*')
+          .eq('client_id', profile.id)
+          .order('assessed_at', { ascending: true }),
         supabase.from('weight_checkins').select('*').eq('client_id', profile.id).order('log_date', { ascending: true }),
-        supabase.from('support_requests').select('*').eq('from_user', profile.id).order('created_at', { ascending: false }).limit(10),
+        supabase
+          .from('support_requests')
+          .select('*')
+          .eq('from_user', profile.id)
+          .order('created_at', { ascending: false })
+          .limit(10),
       ])
 
       setClientRow(cRow)
@@ -191,6 +259,8 @@ export function ClientDashboardPage() {
           setSelectedWeekday(sortedDays[0].weekday)
         }
 
+        await loadWorkoutDayPhotos(sortedDays.map((d: any) => d.id))
+
         const { data: wLogs } = await supabase
           .from('workout_logs')
           .select('*')
@@ -223,17 +293,18 @@ export function ClientDashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [profile?.id, todayIso])
+  }, [profile?.id, todayIso, loadWorkoutDayPhotos])
 
   useEffect(() => {
     loadClientData()
   }, [loadClientData])
 
-  // Load meals & attachments when selectedPlanId changes
+  // Load meals, attachments & meal photo posts when selectedPlanId changes
   const loadPlanDetails = useCallback(async (planId: string) => {
     if (!planId) {
       setMeals([])
       setAttachments([])
+      setMealPhotosByMealId({})
       return
     }
     const [{ data: mealRows }, { data: attRows }] = await Promise.all([
@@ -247,9 +318,38 @@ export function ClientDashboardPage() {
 
     const formattedMeals = (mealRows || []).map((m: any) => ({
       ...m,
+      week_number: m.week_number ?? 1,
+      weekday: m.weekday ?? null,
       diet_meal_items: (m.diet_meal_items || []).sort((a: any, b: any) => a.position - b.position),
     }))
     setMeals(formattedMeals)
+
+    const mealIds = formattedMeals.map((m: any) => m.id)
+    if (mealIds.length > 0) {
+      const { data: photoRows } = await supabase
+        .from('meal_photo_posts')
+        .select('*')
+        .in('meal_id', mealIds)
+        .order('log_date', { ascending: false })
+        .order('created_at', { ascending: false })
+
+      const grouped: Record<string, ClientDiaryPhoto[]> = {}
+      for (const r of photoRows || []) {
+        const url = await getSignedOrPublicUrl('client-diary-photos', r.storage_path)
+        if (!url) continue
+        if (!grouped[r.meal_id]) grouped[r.meal_id] = []
+        grouped[r.meal_id].push({
+          id: r.id,
+          log_date: r.log_date,
+          storage_path: r.storage_path,
+          caption: r.caption || 'Foto do que comi',
+          url,
+        })
+      }
+      setMealPhotosByMealId(grouped)
+    } else {
+      setMealPhotosByMealId({})
+    }
 
     const resolvedAtts = await Promise.all(
       (attRows || []).map(async (a: any) => ({
@@ -273,12 +373,46 @@ export function ClientDashboardPage() {
     [dietPlans, selectedPlanId],
   )
 
+  const hasMonthlyMeals = useMemo(
+    () => activeDietPlan?.planning_scope === 'monthly' || meals.some((m) => (m.week_number ?? 1) > 1),
+    [activeDietPlan, meals],
+  )
+
+  // Displayed meals for the client's currently selected (dietWeek, dietWeekday)
+  const displayedMeals = useMemo(() => {
+    if (dietWeekday !== null) {
+      const exactDayMeals = meals.filter(
+        (m) => (m.week_number ?? 1) === dietWeek && m.weekday === dietWeekday,
+      )
+      if (exactDayMeals.length > 0) return exactDayMeals
+    }
+    const weekBaseMeals = meals.filter(
+      (m) => (m.week_number ?? 1) === dietWeek && (m.weekday === null || m.weekday === undefined),
+    )
+    if (weekBaseMeals.length > 0) return weekBaseMeals
+
+    const week1BaseMeals = meals.filter(
+      (m) => (m.week_number ?? 1) === 1 && (m.weekday === null || m.weekday === undefined),
+    )
+    return week1BaseMeals.length > 0 ? week1BaseMeals : meals
+  }, [meals, dietWeek, dietWeekday])
+
+  const completedDisplayedMealsCount = useMemo(
+    () => displayedMeals.filter((m) => completedMealIds.has(m.id)).length,
+    [displayedMeals, completedMealIds],
+  )
+
+  const allDisplayedMealsDone = useMemo(
+    () => displayedMeals.length > 0 && completedDisplayedMealsCount === displayedMeals.length,
+    [displayedMeals, completedDisplayedMealsCount],
+  )
+
   const dietTotals = useMemo(() => {
     let p = 0
     let c = 0
     let g = 0
     let kcal = 0
-    for (const meal of meals) {
+    for (const meal of displayedMeals) {
       for (const item of meal.diet_meal_items || []) {
         if (item.foods) {
           const m = calcFoodPortionMacros(item.foods, Number(item.grams))
@@ -290,7 +424,7 @@ export function ClientDashboardPage() {
       }
     }
     return { p: Math.round(p), c: Math.round(c), g: Math.round(g), kcal: Math.round(kcal) }
-  }, [meals])
+  }, [displayedMeals])
 
   const handleAddWater = async (deltaMl: number) => {
     if (!profile?.id) return
@@ -316,17 +450,104 @@ export function ClientDashboardPage() {
     else nextSet.add(mealId)
     setCompletedMealIds(nextSet)
 
-    const { error } = await supabase.from('meal_logs').upsert({
-      meal_id: mealId,
-      client_id: profile.id,
-      log_date: todayIso,
-      completed: !isDone,
-    })
+    const { error } = await supabase.from('meal_logs').upsert(
+      {
+        meal_id: mealId,
+        client_id: profile.id,
+        log_date: todayIso,
+        completed: !isDone,
+      },
+      { onConflict: 'meal_id,log_date' },
+    )
     if (error) {
       toast.error('Não foi possível registrar a refeição.')
     } else {
-      toast.success(!isDone ? 'Refeição marcada como concluída!' : 'Refeição desmarcada.')
+      toast.success(!isDone ? 'Refeição marcada no checklist do dia!' : 'Refeição desmarcada.')
     }
+  }
+
+  const handleToggleAllMealsOfDay = async () => {
+    if (!profile?.id || displayedMeals.length === 0) return
+    const targetCompleted = !allDisplayedMealsDone
+    const nextSet = new Set(completedMealIds)
+    for (const m of displayedMeals) {
+      if (targetCompleted) nextSet.add(m.id)
+      else nextSet.delete(m.id)
+    }
+    setCompletedMealIds(nextSet)
+
+    const payload = displayedMeals.map((m) => ({
+      meal_id: m.id,
+      client_id: profile.id,
+      log_date: todayIso,
+      completed: targetCompleted,
+    }))
+
+    const { error } = await supabase
+      .from('meal_logs')
+      .upsert(payload, { onConflict: 'meal_id,log_date' })
+
+    if (error) {
+      toast.error('Erro ao atualizar o checklist de refeições.')
+      return
+    }
+    toast.success(
+      targetCompleted
+        ? 'Todas as refeições do dia foram marcadas como concluídas!'
+        : 'Checklist de refeições do dia desmarcado.',
+    )
+  }
+
+  const handleUploadMealPhoto = async (meal: any, captured: CapturedMediaFile) => {
+    if (!profile?.id) return
+    const ext = captured.file.name.split('.').pop() || 'jpg'
+    const storagePath = `${profile.id}/meals/${meal.id}/${Date.now()}.${ext}`
+
+    const { error: upErr } = await supabase.storage
+      .from('client-diary-photos')
+      .upload(storagePath, captured.file, { upsert: true, contentType: captured.file.type })
+
+    if (upErr) throw upErr
+
+    const { data: inserted, error: dbErr } = await supabase
+      .from('meal_photo_posts')
+      .insert({
+        client_id: profile.id,
+        meal_id: meal.id,
+        log_date: todayIso,
+        storage_path: storagePath,
+        caption: captured.caption || `Registro de ${meal.name} (${todayIso})`,
+      })
+      .select('*')
+      .single()
+
+    if (dbErr) throw dbErr
+
+    const url = await getSignedOrPublicUrl('client-diary-photos', storagePath)
+    setMealPhotosByMealId((prev) => ({
+      ...prev,
+      [meal.id]: [
+        {
+          id: inserted.id,
+          log_date: inserted.log_date,
+          storage_path: inserted.storage_path,
+          caption: inserted.caption || `Foto de ${meal.name}`,
+          url,
+        },
+        ...(prev[meal.id] || []),
+      ],
+    }))
+    toast.success(`Foto publicada em "${meal.name}"!`)
+  }
+
+  const handleDeleteMealPhoto = async (mealId: string, photo: ClientDiaryPhoto) => {
+    await supabase.storage.from('client-diary-photos').remove([photo.storage_path]).catch(() => null)
+    await supabase.from('meal_photo_posts').delete().eq('id', photo.id)
+    setMealPhotosByMealId((prev) => ({
+      ...prev,
+      [mealId]: (prev[mealId] || []).filter((p) => p.id !== photo.id),
+    }))
+    toast.info('Foto da refeição removida.')
   }
 
   const handleApplyFoodSwap = async (newFoodId: string, newGrams: number) => {
@@ -353,10 +574,28 @@ export function ClientDashboardPage() {
     [workoutDays, selectedWeek, selectedWeekday],
   )
 
+  const activeDayExercises = useMemo(
+    () => activeWorkoutDay?.workout_exercises || [],
+    [activeWorkoutDay],
+  )
+
+  const completedDayExercisesCount = useMemo(
+    () => activeDayExercises.filter((we: any) => workoutLogsByExId[we.id]?.completed).length,
+    [activeDayExercises, workoutLogsByExId],
+  )
+
+  const allDayExercisesCompleted = useMemo(
+    () => activeDayExercises.length > 0 && completedDayExercisesCount === activeDayExercises.length,
+    [activeDayExercises, completedDayExercisesCount],
+  )
+
   const handleToggleExercise = async (we: any, customLoad?: number, customReps?: number) => {
     if (!profile?.id) return
     const current = workoutLogsByExId[we.id]
-    const nextCompleted = customLoad !== undefined || customReps !== undefined ? (current?.completed ?? true) : !current?.completed
+    const nextCompleted =
+      customLoad !== undefined || customReps !== undefined
+        ? (current?.completed ?? true)
+        : !current?.completed
     const loadKg = customLoad ?? current?.load_kg ?? Number(we.load_kg || 0)
     const repsVal = customReps ?? current?.reps ?? (parseInt(String(we.reps), 10) || 10)
 
@@ -381,6 +620,97 @@ export function ClientDashboardPage() {
     } else if (customLoad === undefined && customReps === undefined && nextCompleted) {
       toast.success(`Exercício concluído: ${we.exercises?.name_pt}`)
     }
+  }
+
+  const handleCompleteAllExercisesOfDay = async () => {
+    if (!profile?.id || !activeWorkoutDay || activeDayExercises.length === 0) return
+    const nextCompleted = !allDayExercisesCompleted
+    setTogglingAllExercises(true)
+    try {
+      const nextMap = { ...workoutLogsByExId }
+      const payload = activeDayExercises.map((we: any) => {
+        const current = workoutLogsByExId[we.id]
+        const loadKg = current?.load_kg ?? Number(we.load_kg || 0)
+        const repsVal = current?.reps ?? (parseInt(String(we.reps), 10) || 10)
+        nextMap[we.id] = { completed: nextCompleted, load_kg: loadKg, reps: repsVal }
+        return {
+          client_id: profile.id,
+          workout_exercise_id: we.id,
+          log_date: todayIso,
+          completed: nextCompleted,
+          load_kg: loadKg,
+          reps: repsVal,
+        }
+      })
+
+      setWorkoutLogsByExId(nextMap)
+      const { error } = await supabase
+        .from('workout_logs')
+        .upsert(payload, { onConflict: 'workout_exercise_id,log_date' })
+
+      if (error) throw error
+      toast.success(
+        nextCompleted
+          ? `Parabéns! Todos os ${activeDayExercises.length} exercícios do dia foram marcados como concluídos!`
+          : 'Exercícios do dia desmarcados.',
+      )
+    } catch (err: any) {
+      toast.error(translateErrorPt(err))
+    } finally {
+      setTogglingAllExercises(false)
+    }
+  }
+
+  const handleUploadWorkoutDayPhoto = async (day: any, captured: CapturedMediaFile) => {
+    if (!profile?.id || !day?.id) return
+    const ext = captured.file.name.split('.').pop() || 'jpg'
+    const storagePath = `${profile.id}/workouts/${day.id}/${Date.now()}.${ext}`
+
+    const { error: upErr } = await supabase.storage
+      .from('client-diary-photos')
+      .upload(storagePath, captured.file, { upsert: true, contentType: captured.file.type })
+
+    if (upErr) throw upErr
+
+    const { data: inserted, error: dbErr } = await supabase
+      .from('workout_day_photos')
+      .insert({
+        client_id: profile.id,
+        workout_day_id: day.id,
+        log_date: todayIso,
+        storage_path: storagePath,
+        caption: captured.caption || `Treino concluído — ${day.title} (${todayIso})`,
+      })
+      .select('*')
+      .single()
+
+    if (dbErr) throw dbErr
+
+    const url = await getSignedOrPublicUrl('client-diary-photos', storagePath)
+    setWorkoutPhotosByDayId((prev) => ({
+      ...prev,
+      [day.id]: [
+        {
+          id: inserted.id,
+          log_date: inserted.log_date,
+          storage_path: inserted.storage_path,
+          caption: inserted.caption || 'Foto do treino do dia',
+          url,
+        },
+        ...(prev[day.id] || []),
+      ],
+    }))
+    toast.success(`Foto do treino publicada em "${day.title}"!`)
+  }
+
+  const handleDeleteWorkoutDayPhoto = async (dayId: string, photo: ClientDiaryPhoto) => {
+    await supabase.storage.from('client-diary-photos').remove([photo.storage_path]).catch(() => null)
+    await supabase.from('workout_day_photos').delete().eq('id', photo.id)
+    setWorkoutPhotosByDayId((prev) => ({
+      ...prev,
+      [dayId]: (prev[dayId] || []).filter((p) => p.id !== photo.id),
+    }))
+    toast.info('Foto do treino removida.')
   }
 
   const handleQuickWeightCheckin = async () => {
@@ -521,7 +851,7 @@ export function ClientDashboardPage() {
               <div className="rounded-2xl bg-white/10 border border-white/10 px-3.5 py-2.5">
                 <span className="text-[11px] text-slate-300 block">Refeições Hoje</span>
                 <strong className="font-display text-lg text-emerald-400">
-                  {completedMealIds.size}/{meals.length || 0}
+                  {completedDisplayedMealsCount}/{displayedMeals.length || 0}
                 </strong>
               </div>
               <div className="rounded-2xl bg-white/10 border border-white/10 px-3.5 py-2.5">
@@ -564,15 +894,24 @@ export function ClientDashboardPage() {
           {/* ==================== ABA 1: MINHA DIETA ==================== */}
           <TabsContent value="diet" className="space-y-5">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-              {/* Resumo de Macros & Seletor de Plano */}
+              {/* Resumo de Macros, Seletor de Plano e Navegação Semanal/Mensal */}
               <Card className="lg:col-span-8 rounded-2xl">
                 <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <CardTitle className="font-display text-base">
-                      {activeDietPlan?.name || 'Plano Alimentar Prescrito'}
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      {activeDietPlan?.notes || 'Siga as porções em gramas ou utilize a substituição inteligente TACO.'}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CardTitle className="font-display text-base">
+                        {activeDietPlan?.name || 'Plano Alimentar Prescrito'}
+                      </CardTitle>
+                      <Badge variant="outline" className="text-[11px] border-emerald-300 text-emerald-800 gap-1">
+                        <CalendarDays className="w-3 h-3" />
+                        <span>
+                          {hasMonthlyMeals ? 'Planejamento Mensal (4 Semanas)' : 'Planejamento Semanal'}
+                        </span>
+                      </Badge>
+                    </div>
+                    <CardDescription className="text-xs mt-0.5">
+                      {activeDietPlan?.notes ||
+                        'Siga as porções em gramas, marque o checklist diário e poste a foto das suas refeições.'}
                     </CardDescription>
                   </div>
                   {dietPlans.length > 1 && (
@@ -590,58 +929,112 @@ export function ClientDashboardPage() {
                     </Select>
                   )}
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
-                    <span className="text-xs text-muted-foreground">Calorias do Plano</span>
-                    <div className="font-display font-extrabold text-lg">
-                      {dietTotals.kcal}{' '}
-                      <span className="text-xs font-normal text-muted-foreground">
-                        / {activeDietPlan?.kcal_target || 2400} kcal
-                      </span>
+
+                <CardContent className="space-y-3">
+                  {/* Filtro de Semana (1..4) e Dia da Semana (Seg..Dom) */}
+                  <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/40 p-2.5 space-y-2">
+                    {hasMonthlyMeals && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] font-bold text-emerald-950 mr-1">Semana do Mês:</span>
+                        {[1, 2, 3, 4].map((wk) => (
+                          <Button
+                            key={wk}
+                            type="button"
+                            size="sm"
+                            variant={dietWeek === wk ? 'default' : 'outline'}
+                            onClick={() => setDietWeek(wk)}
+                            className={`h-7 px-2.5 text-xs ${
+                              dietWeek === wk ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-white'
+                            }`}
+                          >
+                            Semana {wk}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] font-bold text-emerald-950 mr-1">Dia do Cardápio:</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={dietWeekday === null ? 'default' : 'outline'}
+                        onClick={() => setDietWeekday(null)}
+                        className={`h-7 px-2.5 text-xs ${
+                          dietWeekday === null ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-white'
+                        }`}
+                      >
+                        Cardápio Base
+                      </Button>
+                      {WEEKDAYS.map((wd) => (
+                        <Button
+                          key={wd.id}
+                          type="button"
+                          size="sm"
+                          variant={dietWeekday === wd.id ? 'default' : 'outline'}
+                          onClick={() => setDietWeekday(wd.id)}
+                          className={`h-7 px-2.5 text-xs ${
+                            dietWeekday === wd.id ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-white'
+                          }`}
+                        >
+                          {wd.short}
+                        </Button>
+                      ))}
                     </div>
-                    <Progress
-                      value={Math.min(100, (dietTotals.kcal / (activeDietPlan?.kcal_target || 2400)) * 100)}
-                      className="h-1.5"
-                    />
                   </div>
-                  <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
-                    <span className="text-xs text-muted-foreground">Proteínas</span>
-                    <div className="font-display font-extrabold text-lg text-emerald-700">
-                      {dietTotals.p}g{' '}
-                      <span className="text-xs font-normal text-muted-foreground">
-                        / {activeDietPlan?.protein_target_g || 180}g
-                      </span>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
+                      <span className="text-xs text-muted-foreground">Calorias do Plano</span>
+                      <div className="font-display font-extrabold text-lg">
+                        {dietTotals.kcal}{' '}
+                        <span className="text-xs font-normal text-muted-foreground">
+                          / {activeDietPlan?.kcal_target || 2400} kcal
+                        </span>
+                      </div>
+                      <Progress
+                        value={Math.min(100, (dietTotals.kcal / (activeDietPlan?.kcal_target || 2400)) * 100)}
+                        className="h-1.5"
+                      />
                     </div>
-                    <Progress
-                      value={Math.min(100, (dietTotals.p / (activeDietPlan?.protein_target_g || 180)) * 100)}
-                      className="h-1.5"
-                    />
-                  </div>
-                  <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
-                    <span className="text-xs text-muted-foreground">Carboidratos</span>
-                    <div className="font-display font-extrabold text-lg text-indigo-700">
-                      {dietTotals.c}g{' '}
-                      <span className="text-xs font-normal text-muted-foreground">
-                        / {activeDietPlan?.carb_target_g || 250}g
-                      </span>
+                    <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
+                      <span className="text-xs text-muted-foreground">Proteínas</span>
+                      <div className="font-display font-extrabold text-lg text-emerald-700">
+                        {dietTotals.p}g{' '}
+                        <span className="text-xs font-normal text-muted-foreground">
+                          / {activeDietPlan?.protein_target_g || 180}g
+                        </span>
+                      </div>
+                      <Progress
+                        value={Math.min(100, (dietTotals.p / (activeDietPlan?.protein_target_g || 180)) * 100)}
+                        className="h-1.5"
+                      />
                     </div>
-                    <Progress
-                      value={Math.min(100, (dietTotals.c / (activeDietPlan?.carb_target_g || 250)) * 100)}
-                      className="h-1.5"
-                    />
-                  </div>
-                  <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
-                    <span className="text-xs text-muted-foreground">Gorduras</span>
-                    <div className="font-display font-extrabold text-lg text-amber-700">
-                      {dietTotals.g}g{' '}
-                      <span className="text-xs font-normal text-muted-foreground">
-                        / {activeDietPlan?.fat_target_g || 65}g
-                      </span>
+                    <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
+                      <span className="text-xs text-muted-foreground">Carboidratos</span>
+                      <div className="font-display font-extrabold text-lg text-indigo-700">
+                        {dietTotals.c}g{' '}
+                        <span className="text-xs font-normal text-muted-foreground">
+                          / {activeDietPlan?.carb_target_g || 250}g
+                        </span>
+                      </div>
+                      <Progress
+                        value={Math.min(100, (dietTotals.c / (activeDietPlan?.carb_target_g || 250)) * 100)}
+                        className="h-1.5"
+                      />
                     </div>
-                    <Progress
-                      value={Math.min(100, (dietTotals.g / (activeDietPlan?.fat_target_g || 65)) * 100)}
-                      className="h-1.5"
-                    />
+                    <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
+                      <span className="text-xs text-muted-foreground">Gorduras</span>
+                      <div className="font-display font-extrabold text-lg text-amber-700">
+                        {dietTotals.g}g{' '}
+                        <span className="text-xs font-normal text-muted-foreground">
+                          / {activeDietPlan?.fat_target_g || 65}g
+                        </span>
+                      </div>
+                      <Progress
+                        value={Math.min(100, (dietTotals.g / (activeDietPlan?.fat_target_g || 65)) * 100)}
+                        className="h-1.5"
+                      />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -697,7 +1090,113 @@ export function ClientDashboardPage() {
               </Card>
             </div>
 
-            {/* Galeria de Fotos & Anexos da Dieta (se houver) */}
+            {/* CHECKLIST DE REFEIÇÕES DO DIA (Requisito 1) */}
+            <Card className="rounded-2xl border-emerald-300 bg-gradient-to-r from-emerald-50/70 via-white to-teal-50/40 shadow-2xs">
+              <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle className="font-display text-base flex items-center gap-2 text-emerald-950">
+                      <ClipboardCheck className="w-5 h-5 text-emerald-600" />
+                      <span>Checklist de Refeições Concluídas no Dia</span>
+                    </CardTitle>
+                    <Badge className="bg-emerald-600 text-white">
+                      {completedDisplayedMealsCount} de {displayedMeals.length} concluídas
+                    </Badge>
+                  </div>
+                  <CardDescription className="text-xs">
+                    Marque abaixo cada refeição que você realizou hoje ({todayIso}) para manter seu acompanhamento clínico em dia.
+                  </CardDescription>
+                </div>
+
+                {displayedMeals.length > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={allDisplayedMealsDone ? 'outline' : 'default'}
+                    onClick={handleToggleAllMealsOfDay}
+                    className={`gap-1.5 shrink-0 ${
+                      allDisplayedMealsDone
+                        ? 'border-emerald-300 text-emerald-800 hover:bg-emerald-50'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>
+                      {allDisplayedMealsDone
+                        ? 'Desmarcar Todas do Dia'
+                        : 'Marcar Todas as Refeições do Dia'}
+                    </span>
+                  </Button>
+                )}
+              </CardHeader>
+
+              <CardContent className="space-y-3">
+                <Progress
+                  value={
+                    displayedMeals.length > 0
+                      ? Math.round((completedDisplayedMealsCount / displayedMeals.length) * 100)
+                      : 0
+                  }
+                  className="h-2"
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  {displayedMeals.map((meal) => {
+                    const isDone = completedMealIds.has(meal.id)
+                    const photoCount = (mealPhotosByMealId[meal.id] || []).length
+                    return (
+                      <button
+                        key={meal.id}
+                        type="button"
+                        onClick={() => handleToggleMeal(meal.id)}
+                        className={`text-left rounded-xl border p-3 flex items-center justify-between gap-2.5 transition-all ${
+                          isDone
+                            ? 'border-emerald-500 bg-emerald-50/90 text-emerald-950 shadow-2xs'
+                            : 'border-border bg-white hover:border-emerald-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition ${
+                              isDone
+                                ? 'bg-emerald-600 border-emerald-600 text-white'
+                                : 'border-slate-300 bg-white text-transparent'
+                            }`}
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <div
+                              className={`text-xs font-bold truncate ${
+                                isDone ? 'line-through text-emerald-900' : 'text-foreground'
+                              }`}
+                            >
+                              {meal.name}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                              {meal.meal_time && <span>{String(meal.meal_time).slice(0, 5)}</span>}
+                              {photoCount > 0 && (
+                                <span className="text-emerald-700 font-semibold">
+                                  • 📷 {photoCount}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <Badge
+                          variant={isDone ? 'default' : 'outline'}
+                          className={`text-[10px] shrink-0 ${isDone ? 'bg-emerald-600 text-white' : ''}`}
+                        >
+                          {isDone ? 'Feita ✓' : 'Marcar'}
+                        </Badge>
+                      </button>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Galeria de Fotos & Anexos da Dieta enviados pelo Nutricionista (se houver) */}
             {attachments.length > 0 && (
               <Card className="rounded-2xl border-emerald-200 bg-emerald-50/20">
                 <CardHeader className="pb-3">
@@ -720,10 +1219,11 @@ export function ClientDashboardPage() {
               </Card>
             )}
 
-            {/* Lista de Refeições */}
+            {/* Lista de Cards de Refeições (Com imagem ilustrativa em cada alimento + campo de foto em cada refeição!) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {meals.map((meal) => {
+              {displayedMeals.map((meal) => {
                 const isDone = completedMealIds.has(meal.id)
+                const mealPhotos = mealPhotosByMealId[meal.id] || []
                 const mealMacros = (meal.diet_meal_items || []).reduce(
                   (acc: any, it: any) => {
                     if (!it.foods) return acc
@@ -760,7 +1260,7 @@ export function ClientDashboardPage() {
                           <Check className="w-4 h-4" />
                         </Button>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <CardTitle className="font-display text-base">{meal.name}</CardTitle>
                             {meal.meal_time && (
                               <Badge variant="secondary" className="text-[11px]">
@@ -774,51 +1274,137 @@ export function ClientDashboardPage() {
                           </p>
                         </div>
                       </div>
-                      <Badge variant={isDone ? 'default' : 'outline'} className={isDone ? 'bg-emerald-600' : ''}>
-                        {isDone ? 'Concluída' : 'Pendente'}
-                      </Badge>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={isDone ? 'default' : 'outline'}
+                        onClick={() => handleToggleMeal(meal.id)}
+                        className={`h-8 text-xs gap-1 ${
+                          isDone
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                            : 'border-emerald-300 text-emerald-800 hover:bg-emerald-50'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>{isDone ? 'Concluída' : 'Marcar Feita'}</span>
+                      </Button>
                     </CardHeader>
 
-                    <CardContent className="space-y-2">
-                      {(meal.diet_meal_items || []).map((item: any) => {
-                        const food = item.foods as FoodItemMacro | undefined
-                        if (!food) return null
-                        const m = calcFoodPortionMacros(food, Number(item.grams))
-                        return (
-                          <div
-                            key={item.id}
-                            className="rounded-xl border border-border bg-white p-2.5 flex items-center justify-between gap-2 text-xs"
-                          >
-                            <div>
-                              <div className="font-semibold text-foreground">
-                                {food.name}{' '}
-                                <span className="text-emerald-700 font-bold">({Number(item.grams)}g)</span>
-                              </div>
-                              <div className="text-[11px] text-muted-foreground">
-                                {m.kcal} kcal • P: {m.p}g • C: {m.c}g • G: {m.g}g
-                              </div>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSwapItem({ id: item.id, grams: Number(item.grams), food })
-                                setSwapOpen(true)
-                              }}
-                              className="h-7 px-2 text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 gap-1"
+                    <CardContent className="space-y-3">
+                      {/* Itens Alimentares com Imagem Ilustrativa (<FoodThumb />) */}
+                      <div className="space-y-2">
+                        {(meal.diet_meal_items || []).map((item: any) => {
+                          const food = item.foods as FoodItemMacro | undefined
+                          if (!food) return null
+                          const m = calcFoodPortionMacros(food, Number(item.grams))
+                          return (
+                            <div
+                              key={item.id}
+                              className="rounded-xl border border-border bg-white p-2.5 flex items-center justify-between gap-2.5 text-xs"
                             >
-                              <ArrowLeftRight className="w-3.5 h-3.5" />
-                              <span>Trocar</span>
-                            </Button>
-                          </div>
-                        )
-                      })}
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                <FoodThumb
+                                  name={food.name}
+                                  foodGroup={food.food_group}
+                                  imageUrl={food.image_url}
+                                  size="md"
+                                />
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-foreground truncate">
+                                    {food.name}{' '}
+                                    <span className="text-emerald-700 font-bold">({Number(item.grams)}g)</span>
+                                  </div>
+                                  <div className="text-[11px] text-muted-foreground">
+                                    {m.kcal} kcal • P: {m.p}g • C: {m.c}g • G: {m.g}g
+                                  </div>
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSwapItem({ id: item.id, grams: Number(item.grams), food })
+                                  setSwapOpen(true)
+                                }}
+                                className="h-7 px-2 text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 gap-1 shrink-0"
+                              >
+                                <ArrowLeftRight className="w-3.5 h-3.5" />
+                                <span>Trocar</span>
+                              </Button>
+                            </div>
+                          )
+                        })}
+                      </div>
+
                       {meal.notes && (
                         <p className="text-[11px] text-muted-foreground bg-muted/40 rounded-lg px-2.5 py-1.5">
                           💡 {meal.notes}
                         </p>
                       )}
+
+                      {/* CAMPO DE FOTO DO QUE O CLIENTE COMEU NESTA REFEIÇÃO (POSTAGEM AO LONGO DOS DIAS) */}
+                      <div className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50/40 p-3 space-y-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <Camera className="w-4 h-4 text-emerald-600" />
+                            <span className="text-xs font-bold text-emerald-950">
+                              Diário Fotográfico — {meal.name} ({mealPhotos.length})
+                            </span>
+                          </div>
+                          <MediaAttachmentPicker
+                            triggerLabel="Postar Foto do que Comi"
+                            title={`Postar Foto — ${meal.name}`}
+                            description="Registre a foto do seu prato nesta refeição para acompanhar sua evolução ao longo dos dias."
+                            onConfirmUpload={(captured) => handleUploadMealPhoto(meal, captured)}
+                          />
+                        </div>
+
+                        {mealPhotos.length === 0 ? (
+                          <p className="text-[11px] text-muted-foreground">
+                            Nenhuma foto postada ainda em <strong>{meal.name}</strong>. Clique em &ldquo;Postar Foto do que Comi&rdquo; para iniciar seu mural diário!
+                          </p>
+                        ) : (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {mealPhotos.map((photo) => (
+                              <div
+                                key={photo.id}
+                                className="rounded-xl border border-border bg-white overflow-hidden shadow-2xs flex flex-col justify-between"
+                              >
+                                <img
+                                  src={photo.url}
+                                  alt={photo.caption}
+                                  className="h-24 w-full object-cover"
+                                />
+                                <div className="p-2 flex items-start justify-between gap-1">
+                                  <div className="min-w-0">
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[10px] px-1.5 py-0 bg-emerald-50 text-emerald-800"
+                                    >
+                                      {photo.log_date === todayIso ? `Hoje (${photo.log_date})` : photo.log_date}
+                                    </Badge>
+                                    <p className="text-[11px] text-foreground font-medium truncate mt-0.5">
+                                      {photo.caption}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => handleDeleteMealPhoto(meal.id, photo)}
+                                    className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                                    title="Remover foto"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 )
@@ -894,26 +1480,131 @@ export function ClientDashboardPage() {
                     </div>
 
                     {activeWorkoutDay ? (
-                      <div className="rounded-2xl border border-indigo-100 bg-indigo-50/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-indigo-600" />
-                            <h3 className="font-display font-bold text-base text-slate-900">
-                              {activeWorkoutDay.title}
-                            </h3>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-xs text-muted-foreground">Agrupamentos Musculares:</span>
-                            {(activeWorkoutDay.muscle_groups || []).map((mg: string) => (
-                              <Badge key={mg} className="bg-indigo-600 text-white text-[11px]">
-                                {MUSCLE_GROUP_LABEL[mg] || mg}
+                      <div className="space-y-3">
+                        {/* Cabeçalho do Dia de Treino + BOTÃO CONCLUIR TODOS OS EXERCÍCIOS DO DIA (Requisito 5) */}
+                        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Calendar className="w-4 h-4 text-indigo-600" />
+                              <h3 className="font-display font-bold text-base text-slate-900">
+                                {activeWorkoutDay.title}
+                              </h3>
+                              <Badge
+                                className={
+                                  allDayExercisesCompleted
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-indigo-100 text-indigo-900'
+                                }
+                              >
+                                {completedDayExercisesCount}/{activeDayExercises.length} exercícios concluídos
                               </Badge>
-                            ))}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-xs text-muted-foreground">Agrupamentos Musculares:</span>
+                              {(activeWorkoutDay.muscle_groups || []).map((mg: string) => (
+                                <Badge key={mg} className="bg-indigo-600 text-white text-[11px]">
+                                  {MUSCLE_GROUP_LABEL[mg] || mg}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            {activeDayExercises.length > 0 && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={togglingAllExercises}
+                                onClick={handleCompleteAllExercisesOfDay}
+                                className={`gap-1.5 font-semibold ${
+                                  allDayExercisesCompleted
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                }`}
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span>
+                                  {allDayExercisesCompleted
+                                    ? 'Treino do Dia Concluído ✓ (Desmarcar Todos)'
+                                    : 'Concluir Todos os Exercícios do Dia'}
+                                </span>
+                              </Button>
+                            )}
                           </div>
                         </div>
-                        <Badge variant="outline" className="self-start sm:self-center bg-white">
-                          Clique no GIF para ver a execução em português
-                        </Badge>
+
+                        {/* DIÁRIO FOTOGRÁFICO DO DIA DE TREINO (POR DIA DE TREINO, NÃO POR EXERCÍCIO — Requisito 4) */}
+                        <div className="rounded-2xl border border-dashed border-indigo-300 bg-indigo-50/30 p-4 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <Camera className="w-4 h-4 text-indigo-600" />
+                                <span className="text-xs sm:text-sm font-bold text-indigo-950">
+                                  Fotos do Meu Treino do Dia — {activeWorkoutDay.title} (
+                                  {(workoutPhotosByDayId[activeWorkoutDay.id] || []).length})
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Poste uma foto registrando seu treino concluído neste dia (mural por dia de treino ao longo das datas).
+                              </p>
+                            </div>
+
+                            <MediaAttachmentPicker
+                              triggerLabel="Postar Foto do Treino do Dia"
+                              title={`Registrar Foto — ${activeWorkoutDay.title}`}
+                              description="Envie ou capture uma foto do seu treino deste dia para acompanhar sua evolução."
+                              onConfirmUpload={(captured) =>
+                                handleUploadWorkoutDayPhoto(activeWorkoutDay, captured)
+                              }
+                            />
+                          </div>
+
+                          {(workoutPhotosByDayId[activeWorkoutDay.id] || []).length === 0 ? (
+                            <p className="text-xs text-muted-foreground">
+                              Nenhuma foto postada para este dia de treino ainda. Clique em &ldquo;Postar Foto do Treino do Dia&rdquo; após finalizar sua sessão!
+                            </p>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                              {(workoutPhotosByDayId[activeWorkoutDay.id] || []).map((photo) => (
+                                <div
+                                  key={photo.id}
+                                  className="rounded-xl border border-border bg-white overflow-hidden shadow-2xs flex flex-col justify-between"
+                                >
+                                  <img
+                                    src={photo.url}
+                                    alt={photo.caption}
+                                    className="h-32 w-full object-cover"
+                                  />
+                                  <div className="p-2.5 flex items-start justify-between gap-1.5">
+                                    <div className="min-w-0">
+                                      <Badge
+                                        variant="secondary"
+                                        className="text-[10px] px-1.5 py-0 bg-indigo-50 text-indigo-800"
+                                      >
+                                        {photo.log_date === todayIso ? `Hoje (${photo.log_date})` : photo.log_date}
+                                      </Badge>
+                                      <p className="text-xs font-medium text-foreground truncate mt-0.5">
+                                        {photo.caption}
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() =>
+                                        handleDeleteWorkoutDayPhoto(activeWorkoutDay.id, photo)
+                                      }
+                                      className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                                      title="Excluir foto do treino"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <div className="rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
@@ -1211,7 +1902,9 @@ export function ClientDashboardPage() {
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {CIRCUMFERENCE_FIELDS.filter((f) => latestAssessment.circumferences[f.key] != null).map((field) => {
-                    const initVal = Number(initialAssessment.circumferences[field.key] ?? latestAssessment.circumferences[field.key])
+                    const initVal = Number(
+                      initialAssessment.circumferences[field.key] ?? latestAssessment.circumferences[field.key],
+                    )
                     const currVal = Number(latestAssessment.circumferences[field.key])
                     const diff = +(currVal - initVal).toFixed(1)
                     const good = field.betterDown ? diff <= 0 : diff >= 0
@@ -1222,7 +1915,9 @@ export function ClientDashboardPage() {
                           <strong className="font-display text-lg">{currVal.toFixed(1)} cm</strong>
                           <Badge
                             variant="secondary"
-                            className={`text-[11px] ${good ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}
+                            className={`text-[11px] ${
+                              good ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
+                            }`}
                           >
                             {diff > 0 ? `+${diff}` : diff} cm
                           </Badge>
@@ -1429,7 +2124,7 @@ export function ClientDashboardPage() {
         </Tabs>
       </div>
 
-      {/* Modal de Substituição Equivalente TACO */}
+      {/* Modal de Substituição Equivalente TACO (Com imagem ilustrativa em cada alimento) */}
       <Dialog open={swapOpen} onOpenChange={setSwapOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -1453,20 +2148,28 @@ export function ClientDashboardPage() {
                   key={eq.food.id}
                   className="rounded-xl border border-border p-3 flex items-center justify-between gap-3 hover:border-emerald-400 transition"
                 >
-                  <div>
-                    <div className="text-sm font-bold text-foreground">
-                      {eq.food.name}{' '}
-                      <span className="text-emerald-700">({eq.grams}g)</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {eq.macros.kcal} kcal • P: {eq.macros.p}g • C: {eq.macros.c}g • G: {eq.macros.g}g
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <FoodThumb
+                      name={eq.food.name}
+                      foodGroup={eq.food.food_group}
+                      imageUrl={eq.food.image_url}
+                      size="md"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-foreground truncate">
+                        {eq.food.name}{' '}
+                        <span className="text-emerald-700">({eq.grams}g)</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {eq.macros.kcal} kcal • P: {eq.macros.p}g • C: {eq.macros.c}g • G: {eq.macros.g}g
+                      </div>
                     </div>
                   </div>
                   <Button
                     type="button"
                     size="sm"
                     onClick={() => handleApplyFoodSwap(eq.food.id, eq.grams)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
                   >
                     Escolher
                   </Button>

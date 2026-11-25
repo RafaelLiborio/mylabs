@@ -297,6 +297,8 @@ export type Database = {
           notes: string | null
           plan_id: string
           position: number
+          week_number: number
+          weekday: number | null
         }
         Insert: {
           id?: string
@@ -305,6 +307,8 @@ export type Database = {
           notes?: string | null
           plan_id: string
           position?: number
+          week_number?: number
+          weekday?: number | null
         }
         Update: {
           id?: string
@@ -313,6 +317,8 @@ export type Database = {
           notes?: string | null
           plan_id?: string
           position?: number
+          week_number?: number
+          weekday?: number | null
         }
         Relationships: [
           {
@@ -337,8 +343,10 @@ export type Database = {
           name: string
           notes: string | null
           nutritionist_id: string
+          planning_scope: string
           protein_target_g: number | null
           updated_at: string
+          weeks_count: number
         }
         Insert: {
           active?: boolean
@@ -352,8 +360,10 @@ export type Database = {
           name: string
           notes?: string | null
           nutritionist_id?: string
+          planning_scope?: string
           protein_target_g?: number | null
           updated_at?: string
+          weeks_count?: number
         }
         Update: {
           active?: boolean
@@ -367,8 +377,10 @@ export type Database = {
           name?: string
           notes?: string | null
           nutritionist_id?: string
+          planning_scope?: string
           protein_target_g?: number | null
           updated_at?: string
+          weeks_count?: number
         }
         Relationships: [
           {
@@ -448,6 +460,7 @@ export type Database = {
           fiber_g: number
           food_group: string
           id: string
+          image_url: string | null
           kcal: number | null
           name: string
           owner_id: string | null
@@ -461,6 +474,7 @@ export type Database = {
           fiber_g?: number
           food_group: string
           id?: string
+          image_url?: string | null
           kcal?: number | null
           name: string
           owner_id?: string | null
@@ -474,6 +488,7 @@ export type Database = {
           fiber_g?: number
           food_group?: string
           id?: string
+          image_url?: string | null
           kcal?: number | null
           name?: string
           owner_id?: string | null
@@ -522,6 +537,51 @@ export type Database = {
           },
           {
             foreignKeyName: "meal_logs_meal_id_fkey"
+            columns: ["meal_id"]
+            isOneToOne: false
+            referencedRelation: "diet_meals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meal_photo_posts: {
+        Row: {
+          caption: string | null
+          client_id: string
+          created_at: string
+          id: string
+          log_date: string
+          meal_id: string
+          storage_path: string
+        }
+        Insert: {
+          caption?: string | null
+          client_id: string
+          created_at?: string
+          id?: string
+          log_date?: string
+          meal_id: string
+          storage_path: string
+        }
+        Update: {
+          caption?: string | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          log_date?: string
+          meal_id?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meal_photo_posts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meal_photo_posts_meal_id_fkey"
             columns: ["meal_id"]
             isOneToOne: false
             referencedRelation: "diet_meals"
@@ -795,6 +855,51 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workout_day_photos: {
+        Row: {
+          caption: string | null
+          client_id: string
+          created_at: string
+          id: string
+          log_date: string
+          storage_path: string
+          workout_day_id: string
+        }
+        Insert: {
+          caption?: string | null
+          client_id: string
+          created_at?: string
+          id?: string
+          log_date?: string
+          storage_path: string
+          workout_day_id: string
+        }
+        Update: {
+          caption?: string | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          log_date?: string
+          storage_path?: string
+          workout_day_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_day_photos_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workout_day_photos_workout_day_id_fkey"
+            columns: ["workout_day_id"]
+            isOneToOne: false
+            referencedRelation: "workout_days"
             referencedColumns: ["id"]
           },
         ]

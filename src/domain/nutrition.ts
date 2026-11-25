@@ -10,6 +10,7 @@ export interface FoodItemMacro {
   carb_g: number
   fat_g: number
   fiber_g: number
+  image_url?: string | null
 }
 
 export const FOOD_GROUP_LABELS: Record<string, string> = {

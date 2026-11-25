@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { MUSCLE_GROUP_LABEL, MUSCLE_GROUPS, type MuscleGroupId, WEEKDAYS } from '@/domain/workouts'
-import { Calendar, Copy, Dumbbell, Plus, Search, Sparkles, Trash2 } from 'lucide-react'
+import { Calendar, Camera, Copy, Dumbbell, Plus, Search, Sparkles, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface WorkoutBuilderSectionProps {
@@ -38,6 +38,9 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
   const [exercises, setExercises] = useState<any[]>([])
   const [plan, setPlan] = useState<any>(null)
   const [days, setDays] = useState<any[]>([])
+  const [dayPhotosByDayId, setDayPhotosByDayId] = useState<
+    Record<string, { id: string; log_date: string; caption: string; url: string }[]>
+  >({})
 
   // Week & Weekday navigation
   const [selectedWeek, setSelectedWeek] = useState<number>(1)
@@ -112,6 +115,32 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
         workout_exercises: (d.workout_exercises || []).sort((a: any, b: any) => a.position - b.position),
       }))
       setDays(sorted)
+
+      const dayIds = sorted.map((d: any) => d.id)
+      if (dayIds.length > 0) {
+        const { data: photoRows } = await supabase
+          .from('workout_day_photos')
+          .select('*')
+          .in('workout_day_id', dayIds)
+          .order('log_date', { ascending: false })
+          .order('created_at', { ascending: false })
+
+        const grouped: Record<string, { id: string; log_date: string; caption: string; url: string }[]> = {}
+        for (const r of photoRows || []) {
+          const url = await getSignedOrPublicUrl('client-diary-photos', r.storage_path)
+          if (!url) continue
+          if (!grouped[r.workout_day_id]) grouped[r.workout_day_id] = []
+          grouped[r.workout_day_id].push({
+            id: r.id,
+            log_date: r.log_date,
+            caption: r.caption || 'Foto do treino do dia',
+            url,
+          })
+        }
+        setDayPhotosByDayId(grouped)
+      } else {
+        setDayPhotosByDayId({})
+      }
     }
   }, [clientId, clientName, profile?.id])
 
@@ -791,6 +820,36 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {/* Fotos do Treino do Dia postadas pelo paciente */}
+          {activeDay && (dayPhotosByDayId[activeDay.id] || []).length > 0 && (
+            <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50/40 p-3.5 space-y-2.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
+                <Camera className="w-4 h-4 text-indigo-600" />
+                <span>
+                  Fotos Postadas pelo Paciente neste Dia de Treino ({(dayPhotosByDayId[activeDay.id] || []).length})
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {(dayPhotosByDayId[activeDay.id] || []).map((photo) => (
+                  <div
+                    key={photo.id}
+                    className="rounded-xl border border-border bg-white overflow-hidden shadow-2xs"
+                  >
+                    <img src={photo.url} alt={photo.caption} className="h-28 w-full object-cover" />
+                    <div className="p-2">
+                      <span className="text-[10px] font-bold text-indigo-700 block">
+                        {photo.log_date}
+                      </span>
+                      <span className="text-xs text-foreground truncate block">
+                        {photo.caption}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
