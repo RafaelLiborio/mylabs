@@ -432,9 +432,13 @@ export function AnthropometrySection({
               <BodyMapSvg
                 activeRegion={regionFilter}
                 onSelectRegion={setRegionFilter}
+                sex={clientMeta.sex}
                 bodyFatPct={liveResults.bodyFatPct}
                 leanMassKg={liveResults.leanMassKg}
                 fatMassKg={liveResults.fatMassKg}
+                skinfolds={skinfolds}
+                circumferences={circumferences}
+                requiredSkinfolds={requiredSkinfolds}
               />
 
               {/* Filtro Rápido por Região Corporal */}
