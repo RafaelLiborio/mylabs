@@ -102,24 +102,24 @@ export function buildReadyWhatsappMessage(params: {
   const { kind, clientName, clientEmail, nutritionistName, category, customMessage, goal } = params
   if (kind === 'nutritionist') {
     const lines = [
-      `Olá${nutritionistName ? `, *${nutritionistName}*` : ''}! 👋`,
+      `Olá${nutritionistName ? `, *${nutritionistName}*` : ''}!`,
       `Sou *${clientName}* (cliente pelo app *MyLabs*).`,
-      goal ? `🎯 *Objetivo atual:* ${goal}` : '',
-      `📌 *Assunto:* ${category}`,
+      goal ? `*Objetivo atual:* ${goal}` : '',
+      `*Assunto:* ${category}`,
       '',
-      `💬 *Mensagem:*`,
+      `*Mensagem:*`,
       customMessage.trim(),
     ].filter(Boolean)
     return lines.join('\n')
   }
 
   const lines = [
-    `Olá, *Suporte Técnico MyLabs*! 🛠️`,
-    `👤 *Usuário:* ${clientName}${clientEmail ? ` (${clientEmail})` : ''}`,
-    nutritionistName ? `🩺 *Nutricionista vinculado:* ${nutritionistName}` : '',
-    `📌 *Categoria:* ${category}`,
+    `Olá, *Suporte Técnico MyLabs*!`,
+    `*Usuário:* ${clientName}${clientEmail ? ` (${clientEmail})` : ''}`,
+    nutritionistName ? `*Nutricionista vinculado:* ${nutritionistName}` : '',
+    `*Categoria:* ${category}`,
     '',
-    `💬 *Descrição do chamado:*`,
+    `*Descrição do chamado:*`,
     customMessage.trim(),
   ].filter(Boolean)
   return lines.join('\n')

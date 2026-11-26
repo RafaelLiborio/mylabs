@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, getSignedOrPublicUrl, translateErrorPt } from '@/lib/supabase'
+import { sanitizeHttpUrl } from '@/lib/fileValidation'
 import { useAuth } from '@/contexts/AuthContext'
 import { MediaAttachmentPicker, type CapturedMediaFile } from '@/components/shared/MediaAttachmentPicker'
 import { FoodThumb } from '@/components/shared/FoodThumb'
@@ -614,6 +615,12 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
       toast.error('Informe o nome do alimento.')
       return
     }
+    const rawImgUrl = newFoodImageUrl.trim()
+    const safeImgUrl = rawImgUrl ? sanitizeHttpUrl(rawImgUrl) : null
+    if (rawImgUrl && !safeImgUrl) {
+      toast.error('URL da imagem inválida. Use um endereço HTTPS válido.')
+      return
+    }
     setSavingCustomFood(true)
     try {
       const { data, error } = await supabase
@@ -625,7 +632,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
           carb_g: Math.max(0, Number(newFoodCarb) || 0),
           fat_g: Math.max(0, Number(newFoodFat) || 0),
           fiber_g: Math.max(0, Number(newFoodFiber) || 0),
-          image_url: newFoodImageUrl.trim() || null,
+          image_url: safeImgUrl,
           source: 'personalizado',
           owner_id: profile.id,
         })
@@ -810,7 +817,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs">Proteína Alvo (g/kg — ISSN)</Label>
+              <Label className="text-xs">Proteína Alvo (g/kg - ISSN)</Label>
               <Select value={String(proteinPerKg)} onValueChange={(v) => setProteinPerKg(Number(v))}>
                 <SelectTrigger className="bg-white">
                   <SelectValue />
@@ -825,7 +832,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs">Lipídios (% kcal — DRI/IOM)</Label>
+              <Label className="text-xs">Lipídios (% kcal - DRI/IOM)</Label>
               <Select value={String(fatPct)} onValueChange={(v) => setFatPct(Number(v))}>
                 <SelectTrigger className="bg-white">
                   <SelectValue />
@@ -1276,6 +1283,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
                           type="button"
                           size="icon"
                           variant="outline"
+                          aria-label={`Diminuir porção de ${food.name}`}
                           onClick={() => handleUpdateGrams(it.id, Number(it.grams) - 10)}
                           className="h-7 w-7"
                         >
@@ -1288,6 +1296,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
                           type="button"
                           size="icon"
                           variant="outline"
+                          aria-label={`Aumentar porção de ${food.name}`}
                           onClick={() => handleUpdateGrams(it.id, Number(it.grams) + 10)}
                           className="h-7 w-7"
                         >
@@ -1297,6 +1306,7 @@ export function DietBuilderSection({ clientId, clientName, clientMeta }: DietBui
                           type="button"
                           size="icon"
                           variant="ghost"
+                          aria-label={`Remover ${food.name} da refeição`}
                           onClick={() => handleRemoveFoodItem(it.id)}
                           className="h-7 w-7 text-muted-foreground hover:text-destructive"
                         >

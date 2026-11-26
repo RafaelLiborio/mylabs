@@ -414,11 +414,11 @@ export function AdminDashboardPage() {
 
   const nutriWelcomeMsg = createdNutriCreds
     ? [
-        `Olá, *${createdNutriCreds.name}*! Seu credenciamento como Nutricionista no *MyLabs* foi concluído pelo Suporte! 🩺`,
+        `Olá, *${createdNutriCreds.name}*! Seu credenciamento como Nutricionista no *MyLabs* foi concluído pelo Suporte!`,
         '',
-        `🔗 *Rota Exclusiva de Acesso:* /login/nutri`,
-        `📧 *E-mail:* ${createdNutriCreds.email}`,
-        `🔑 *Senha Inicial:* ${createdNutriCreds.password}`,
+        `*Rota Exclusiva de Acesso:* /login/nutri`,
+        `*E-mail:* ${createdNutriCreds.email}`,
+        `*Senha Inicial:* ${createdNutriCreds.password}`,
       ].join('\n')
     : ''
 
@@ -433,7 +433,7 @@ export function AdminDashboardPage() {
             </Link>
           </Button>
 
-          {/* Cadastro de Nutricionista — Exclusivo do Suporte / Admin */}
+          {/* Cadastro de Nutricionista - Exclusivo do Suporte / Admin */}
           <Dialog
             open={nutriModalOpen}
             onOpenChange={(next) => {
@@ -442,7 +442,7 @@ export function AdminDashboardPage() {
             }}
           >
             <DialogTrigger asChild>
-              <Button className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-xs">
+              <Button className="bg-sky-700 hover:bg-sky-800 text-white gap-2 shadow-xs">
                 <Stethoscope className="w-4 h-4" />
                 <span>Cadastrar Nutricionista</span>
               </Button>
@@ -592,7 +592,7 @@ export function AdminDashboardPage() {
                         <SelectContent>
                           {BRAZIL_STATES.map((st) => (
                             <SelectItem key={st.uf} value={st.uf}>
-                              {st.uf} — {st.name}
+                              {st.uf} - {st.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -611,6 +611,10 @@ export function AdminDashboardPage() {
                     />
                   </div>
 
+                  <p className="text-[11px] text-muted-foreground rounded-lg border border-border bg-muted/40 px-3 py-2">
+                    LGPD: coletamos apenas os dados profissionais necessários para habilitação do CRN e autenticação na plataforma.
+                  </p>
+
                   <DialogFooter className="pt-2">
                     <Button type="button" variant="outline" onClick={() => setNutriModalOpen(false)}>
                       Cancelar
@@ -618,7 +622,7 @@ export function AdminDashboardPage() {
                     <Button
                       type="submit"
                       disabled={registeringNutri}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                      className="bg-sky-700 hover:bg-sky-800 text-white gap-2"
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       <span>
@@ -847,7 +851,7 @@ export function AdminDashboardPage() {
                           <TableCell>
                             {u.role === 'nutritionist' ? (
                               <div className="flex items-center gap-2">
-                                <span className="text-xs font-mono">{u.crn || '—'}</span>
+                                <span className="text-xs font-mono">{u.crn || '-'}</span>
                                 {u.crn_status !== 'approved' ? (
                                   <Button
                                     type="button"
@@ -1032,7 +1036,7 @@ export function AdminDashboardPage() {
               )}
             </div>
             <DialogTitle className="font-display text-lg">
-              Editar Login e Registros — {editingUser?.full_name}
+              Editar Login e Registros - {editingUser?.full_name}
             </DialogTitle>
             <DialogDescription>
               Atualize credenciais de acesso (e-mail e senha), dados de contato e registros clínicos vinculados.
@@ -1307,7 +1311,7 @@ export function AdminDashboardPage() {
                         <SelectContent>
                           {BRAZIL_STATES.map((st) => (
                             <SelectItem key={st.uf} value={st.uf}>
-                              {st.uf} — {st.name}
+                              {st.uf} - {st.name}
                             </SelectItem>
                           ))}
                         </SelectContent>

@@ -18,6 +18,10 @@ export function LegalLinks({
       <Link to="/privacidade" className="underline underline-offset-2 hover:text-foreground" {...extra}>
         Política de Privacidade
       </Link>
+      <span aria-hidden="true">•</span>
+      <Link to="/reembolso" className="underline underline-offset-2 hover:text-foreground" {...extra}>
+        Reembolso
+      </Link>
     </nav>
   )
 }

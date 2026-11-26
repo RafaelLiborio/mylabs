@@ -1,159 +1,203 @@
-import { useState } from 'react'
-import { cn } from '@/lib/utils'
+import {
+  Apple,
+  Banana,
+  Bean,
+  Beef,
+  Carrot,
+  Cherry,
+  Citrus,
+  Cookie,
+  Croissant,
+  CupSoda,
+  Droplet,
+  Egg,
+  Fish,
+  Flame,
+  Grape,
+  Milk,
+  Nut,
+  Salad,
+  Sandwich,
+  Soup,
+  Sprout,
+  Utensils,
+  Wheat,
+  type LucideIcon,
+} from 'lucide-react'
+import { sanitizeHttpUrl } from '@/lib/fileValidation'
 
-interface FoodVisualTheme {
-  emoji: string
+interface FoodVisual {
+  icon: LucideIcon
   bg: string
   border: string
+  text: string
   label: string
 }
 
-const GROUP_DEFAULT_VISUAL: Record<string, FoodVisualTheme> = {
-  protein: {
-    emoji: '🍗',
-    bg: 'from-rose-100 via-orange-50 to-amber-100',
-    border: 'border-rose-200',
-    label: 'Proteína',
+const KEYWORD_VISUALS: Array<{ match: RegExp; visual: FoodVisual }> = [
+  {
+    match: /(frango|peito de frango|peru|ave)/i,
+    visual: { icon: DrumstickIcon, bg: 'from-amber-100 to-orange-50', border: 'border-amber-200', text: 'text-amber-700', label: 'Aves' },
   },
-  carb: {
-    emoji: '🍚',
-    bg: 'from-amber-100 via-yellow-50 to-orange-100',
-    border: 'border-amber-200',
-    label: 'Carboidrato',
+  {
+    match: /(salm[aã]o|til[aá]pia|atum|sardinha|peixe|bacalhau|camar[aã]o)/i,
+    visual: { icon: Fish, bg: 'from-sky-100 to-cyan-50', border: 'border-sky-200', text: 'text-sky-700', label: 'Pescados' },
   },
-  legume: {
-    emoji: '🫘',
-    bg: 'from-stone-200 via-amber-50 to-orange-100',
-    border: 'border-stone-300',
-    label: 'Leguminosa',
+  {
+    match: /(ovo|clara|omelete)/i,
+    visual: { icon: Egg, bg: 'from-yellow-100 to-amber-50', border: 'border-yellow-200', text: 'text-yellow-700', label: 'Ovos' },
   },
-  vegetable: {
-    emoji: '🥦',
-    bg: 'from-emerald-100 via-green-50 to-teal-100',
-    border: 'border-emerald-200',
-    label: 'Vegetal',
+  {
+    match: /(carne|patinho|alcatra|bife|ac[eé]m|fil[eé]|porco|lombo|cox[aã]o|m[uú]sculo)/i,
+    visual: { icon: Beef, bg: 'from-rose-100 to-red-50', border: 'border-rose-200', text: 'text-rose-700', label: 'Carnes' },
   },
-  fruit: {
-    emoji: '🍎',
-    bg: 'from-pink-100 via-rose-50 to-amber-100',
-    border: 'border-pink-200',
-    label: 'Fruta',
+  {
+    match: /(whey|prote[ií]na|suplemento|albumina|case[ií]na|creatina)/i,
+    visual: { icon: CupSoda, bg: 'from-slate-100 to-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', label: 'Suplemento' },
   },
-  fat: {
-    emoji: '🥑',
-    bg: 'from-lime-100 via-amber-50 to-yellow-100',
-    border: 'border-lime-200',
-    label: 'Gordura Boa',
+  {
+    match: /(arroz|tapioca|cuscuz|macarr[aã]o|massa)/i,
+    visual: { icon: Soup, bg: 'from-amber-50 to-stone-100', border: 'border-amber-200', text: 'text-amber-800', label: 'Cereais' },
   },
-  dairy: {
-    emoji: '🥛',
-    bg: 'from-sky-100 via-blue-50 to-indigo-100',
-    border: 'border-sky-200',
-    label: 'Laticínio',
+  {
+    match: /(aveia|granola|quinoa|chia|linha[cç]a|trigo)/i,
+    visual: { icon: Wheat, bg: 'from-yellow-100 to-amber-50', border: 'border-amber-200', text: 'text-amber-700', label: 'Grãos' },
   },
-  other: {
-    emoji: '🍯',
-    bg: 'from-amber-100 via-orange-50 to-yellow-100',
-    border: 'border-amber-200',
-    label: 'Alimento',
+  {
+    match: /(p[aã]o|torrada|croissant|biscoito|bolacha)/i,
+    visual: { icon: Croissant, bg: 'from-orange-100 to-amber-50', border: 'border-orange-200', text: 'text-orange-700', label: 'Panificados' },
   },
-}
-
-const KEYWORD_VISUALS: { match: RegExp; emoji: string; bg: string; border: string }[] = [
-  { match: /frango/i, emoji: '🍗', bg: 'from-amber-100 via-orange-50 to-yellow-100', border: 'border-amber-200' },
-  { match: /til[aá]pia|salm[aã]o|atum|peixe/i, emoji: '🐟', bg: 'from-sky-100 via-cyan-50 to-teal-100', border: 'border-sky-200' },
-  { match: /ovo|clara/i, emoji: '🥚', bg: 'from-amber-100 via-yellow-50 to-orange-50', border: 'border-amber-200' },
-  { match: /carne|patinho|alcatra|bife/i, emoji: '🥩', bg: 'from-rose-100 via-red-50 to-orange-100', border: 'border-rose-200' },
-  { match: /porco|lombo/i, emoji: '🍖', bg: 'from-orange-100 via-rose-50 to-amber-100', border: 'border-orange-200' },
-  { match: /whey|prote[ií]na|suplemento/i, emoji: '🥤', bg: 'from-indigo-100 via-purple-50 to-sky-100', border: 'border-indigo-200' },
-  { match: /arroz/i, emoji: '🍚', bg: 'from-slate-100 via-amber-50 to-stone-100', border: 'border-slate-200' },
-  { match: /batata-doce|batata doce/i, emoji: '🍠', bg: 'from-orange-100 via-amber-50 to-rose-100', border: 'border-orange-200' },
-  { match: /batata|mandioca|inhame/i, emoji: '🥔', bg: 'from-amber-100 via-yellow-50 to-stone-100', border: 'border-amber-200' },
-  { match: /macarr[aã]o|massa/i, emoji: '🍝', bg: 'from-amber-100 via-orange-50 to-yellow-100', border: 'border-amber-200' },
-  { match: /p[aã]o|torrada|crepioca|tapioca/i, emoji: '🍞', bg: 'from-amber-100 via-orange-50 to-stone-100', border: 'border-amber-200' },
-  { match: /aveia|granola|cereal/i, emoji: '🥣', bg: 'from-amber-100 via-stone-50 to-yellow-100', border: 'border-amber-200' },
-  { match: /milho/i, emoji: '🌽', bg: 'from-yellow-100 via-amber-50 to-lime-100', border: 'border-yellow-300' },
-  { match: /feij[aã]o|lentilha|gr[aã]o-de-bico/i, emoji: '🍲', bg: 'from-amber-100 via-stone-100 to-orange-100', border: 'border-amber-200' },
-  { match: /br[oó]colis/i, emoji: '🥦', bg: 'from-emerald-100 via-green-50 to-lime-100', border: 'border-emerald-200' },
-  { match: /cenoura|beterraba/i, emoji: '🥕', bg: 'from-orange-100 via-amber-50 to-rose-100', border: 'border-orange-200' },
-  { match: /alface|couve|salada|r[uú]cula|espinafre/i, emoji: '🥬', bg: 'from-emerald-100 via-green-50 to-teal-100', border: 'border-emerald-200' },
-  { match: /tomate/i, emoji: '🍅', bg: 'from-red-100 via-rose-50 to-orange-100', border: 'border-red-200' },
-  { match: /pepino|abobrinha/i, emoji: '🥒', bg: 'from-lime-100 via-emerald-50 to-green-100', border: 'border-lime-200' },
-  { match: /banana/i, emoji: '🍌', bg: 'from-yellow-100 via-amber-50 to-orange-50', border: 'border-yellow-300' },
-  { match: /ma[cç][aã]/i, emoji: '🍎', bg: 'from-rose-100 via-red-50 to-pink-100', border: 'border-rose-200' },
-  { match: /mam[aã]o|manga/i, emoji: '🥭', bg: 'from-orange-100 via-amber-50 to-yellow-100', border: 'border-orange-200' },
-  { match: /laranja|tangerina/i, emoji: '🍊', bg: 'from-orange-100 via-amber-50 to-yellow-100', border: 'border-orange-200' },
-  { match: /morango/i, emoji: '🍓', bg: 'from-rose-100 via-pink-50 to-red-100', border: 'border-rose-200' },
-  { match: /abacaxi/i, emoji: '🍍', bg: 'from-yellow-100 via-lime-50 to-amber-100', border: 'border-yellow-300' },
-  { match: /uva/i, emoji: '🍇', bg: 'from-purple-100 via-violet-50 to-fuchsia-100', border: 'border-purple-200' },
-  { match: /melancia/i, emoji: '🍉', bg: 'from-rose-100 via-emerald-50 to-pink-100', border: 'border-rose-200' },
-  { match: /abacate/i, emoji: '🥑', bg: 'from-lime-100 via-emerald-50 to-green-100', border: 'border-lime-200' },
-  { match: /kiwi/i, emoji: '🥝', bg: 'from-lime-100 via-green-50 to-amber-100', border: 'border-lime-200' },
-  { match: /azeite|[oó]leo/i, emoji: '🫒', bg: 'from-lime-100 via-yellow-50 to-emerald-100', border: 'border-lime-200' },
-  { match: /castanha|amendoim|nozes|pasta de amendoim/i, emoji: '🥜', bg: 'from-amber-100 via-orange-50 to-stone-100', border: 'border-amber-200' },
-  { match: /manteiga/i, emoji: '🧈', bg: 'from-yellow-100 via-amber-50 to-orange-50', border: 'border-yellow-200' },
-  { match: /iogurte|leite/i, emoji: '🥛', bg: 'from-sky-100 via-blue-50 to-indigo-50', border: 'border-sky-200' },
-  { match: /queijo|cottage|ricota|mussarela|minas/i, emoji: '🧀', bg: 'from-yellow-100 via-amber-50 to-orange-100', border: 'border-yellow-300' },
-  { match: /mel/i, emoji: '🍯', bg: 'from-amber-100 via-yellow-50 to-orange-100', border: 'border-amber-200' },
+  {
+    match: /(sandu[ií]che|wrap|lanche)/i,
+    visual: { icon: Sandwich, bg: 'from-orange-100 to-amber-50', border: 'border-orange-200', text: 'text-orange-700', label: 'Lanche' },
+  },
+  {
+    match: /(batata|mandioca|aipim|inhame|car[aá])/i,
+    visual: { icon: Sprout, bg: 'from-amber-100 to-orange-50', border: 'border-amber-200', text: 'text-amber-800', label: 'Raízes' },
+  },
+  {
+    match: /(feij[aã]o|lentilha|gr[aã]o de bico|soja|ervilha)/i,
+    visual: { icon: Bean, bg: 'from-stone-100 to-amber-50', border: 'border-stone-200', text: 'text-stone-700', label: 'Leguminosas' },
+  },
+  {
+    match: /(banana)/i,
+    visual: { icon: Banana, bg: 'from-yellow-100 to-amber-50', border: 'border-yellow-200', text: 'text-yellow-700', label: 'Fruta' },
+  },
+  {
+    match: /(ma[cç][aã]|pera)/i,
+    visual: { icon: Apple, bg: 'from-red-100 to-rose-50', border: 'border-red-200', text: 'text-red-700', label: 'Fruta' },
+  },
+  {
+    match: /(morango|framboesa|cereja|amora)/i,
+    visual: { icon: Cherry, bg: 'from-rose-100 to-pink-50', border: 'border-rose-200', text: 'text-rose-700', label: 'Fruta' },
+  },
+  {
+    match: /(uva|a[cç]a[ií]|blueberry|mirtilo)/i,
+    visual: { icon: Grape, bg: 'from-sky-100 to-slate-50', border: 'border-sky-200', text: 'text-sky-800', label: 'Fruta' },
+  },
+  {
+    match: /(laranja|lim[aã]o|mexerica|tangerina|abacaxi|mam[aã]o|melancia|manga|kiwi)/i,
+    visual: { icon: Citrus, bg: 'from-orange-100 to-yellow-50', border: 'border-orange-200', text: 'text-orange-700', label: 'Fruta' },
+  },
+  {
+    match: /(abacate)/i,
+    visual: { icon: Sprout, bg: 'from-emerald-100 to-lime-50', border: 'border-emerald-200', text: 'text-emerald-700', label: 'Fruta' },
+  },
+  {
+    match: /(cenoura|ab[oó]bora|beterraba)/i,
+    visual: { icon: Carrot, bg: 'from-orange-100 to-amber-50', border: 'border-orange-200', text: 'text-orange-700', label: 'Legume' },
+  },
+  {
+    match: /(br[oó]colis|espinafre|couve|alface|r[uú]cula|salada|legumes|tomate|pepino|abobrinha)/i,
+    visual: { icon: Salad, bg: 'from-emerald-100 to-green-50', border: 'border-emerald-200', text: 'text-emerald-700', label: 'Vegetal' },
+  },
+  {
+    match: /(leite|iogurte|kefir|requeij[aã]o|queijo|ricota|cottage)/i,
+    visual: { icon: Milk, bg: 'from-sky-50 to-slate-100', border: 'border-sky-200', text: 'text-sky-700', label: 'Laticínio' },
+  },
+  {
+    match: /(azeite|[oó]leo|manteiga)/i,
+    visual: { icon: Droplet, bg: 'from-lime-100 to-yellow-50', border: 'border-lime-200', text: 'text-lime-700', label: 'Óleos' },
+  },
+  {
+    match: /(castanha|amendoim|am[eê]ndoa|nozes|pasta de amendoim)/i,
+    visual: { icon: Nut, bg: 'from-amber-100 to-stone-50', border: 'border-amber-200', text: 'text-amber-800', label: 'Oleaginosas' },
+  },
+  {
+    match: /(mel|chocolate|cacau|doce)/i,
+    visual: { icon: Cookie, bg: 'from-amber-100 to-orange-50', border: 'border-amber-200', text: 'text-amber-800', label: 'Doce' },
+  },
 ]
 
-export function getFoodVisual(name: string, foodGroup = 'other') {
-  for (const kw of KEYWORD_VISUALS) {
-    if (kw.match.test(name)) {
-      return kw
-    }
-  }
-  return GROUP_DEFAULT_VISUAL[foodGroup] || GROUP_DEFAULT_VISUAL.other
+// Helper alias because lucide-react exports Drumstick
+import { Drumstick as DrumstickIcon } from 'lucide-react'
+
+const GROUP_VISUALS: Record<string, FoodVisual> = {
+  Proteínas: { icon: Flame, bg: 'from-rose-100 to-orange-50', border: 'border-rose-200', text: 'text-rose-700', label: 'Proteínas' },
+  Carboidratos: { icon: Wheat, bg: 'from-amber-100 to-yellow-50', border: 'border-amber-200', text: 'text-amber-700', label: 'Carboidratos' },
+  Frutas: { icon: Apple, bg: 'from-orange-100 to-emerald-50', border: 'border-orange-200', text: 'text-orange-700', label: 'Frutas' },
+  Vegetais: { icon: Salad, bg: 'from-emerald-100 to-green-50', border: 'border-emerald-200', text: 'text-emerald-700', label: 'Vegetais' },
+  Leguminosas: { icon: Bean, bg: 'from-stone-100 to-amber-50', border: 'border-stone-200', text: 'text-stone-700', label: 'Leguminosas' },
+  Laticínios: { icon: Milk, bg: 'from-sky-50 to-slate-100', border: 'border-sky-200', text: 'text-sky-700', label: 'Laticínios' },
+  Gorduras: { icon: Droplet, bg: 'from-yellow-100 to-lime-50', border: 'border-yellow-200', text: 'text-yellow-700', label: 'Gorduras' },
+  Suplementos: { icon: CupSoda, bg: 'from-slate-100 to-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', label: 'Suplementos' },
 }
 
+export function getFoodVisual(name: string, foodGroup?: string | null): FoodVisual {
+  const n = name || ''
+  for (const rule of KEYWORD_VISUALS) {
+    if (rule.match.test(n)) return rule.visual
+  }
+  if (foodGroup && GROUP_VISUALS[foodGroup]) {
+    return GROUP_VISUALS[foodGroup]
+  }
+  return { icon: Utensils, bg: 'from-emerald-100 to-slate-50', border: 'border-emerald-200', text: 'text-emerald-700', label: 'Alimento' }
+}
+
+/**
+ * Miniatura ilustrativa para cada alimento: exibe a foto oficial se houver,
+ * ou um ícone clínico temático de alta legibilidade baseado no alimento e grupo.
+ */
 export function FoodThumb({
   name,
-  foodGroup = 'other',
+  foodGroup,
   imageUrl,
   size = 'md',
-  className,
 }: {
   name: string
-  foodGroup?: string
+  foodGroup?: string | null
   imageUrl?: string | null
   size?: 'sm' | 'md' | 'lg'
-  className?: string
 }) {
-  const [imgError, setImgError] = useState(false)
+  const safeImageUrl = imageUrl ? sanitizeHttpUrl(imageUrl) : null
   const visual = getFoodVisual(name, foodGroup)
-
-  const sizeClasses =
+  const Icon = visual.icon
+  const dims =
     size === 'sm'
-      ? 'w-9 h-9 text-base rounded-lg'
+      ? 'w-9 h-9 rounded-lg'
       : size === 'lg'
-        ? 'w-14 h-14 text-2xl rounded-2xl'
-        : 'w-11 h-11 text-xl rounded-xl'
+        ? 'w-14 h-14 rounded-2xl'
+        : 'w-11 h-11 rounded-xl'
+  const iconSize = size === 'sm' ? 'w-4 h-4' : size === 'lg' ? 'w-6 h-6' : 'w-5 h-5'
+
+  if (safeImageUrl) {
+    return (
+      <img
+        src={safeImageUrl}
+        alt={name}
+        className={`${dims} object-cover border border-border bg-muted shrink-0`}
+        loading="lazy"
+      />
+    )
+  }
 
   return (
     <div
-      className={cn(
-        `relative overflow-hidden border bg-gradient-to-br flex items-center justify-center shrink-0 shadow-2xs select-none`,
-        visual.bg,
-        visual.border,
-        sizeClasses,
-        className,
-      )}
-      title={`Ilustração nutricional: ${name}`}
-      aria-label={`Imagem ilustrativa de ${name}`}
+      className={`${dims} bg-gradient-to-br ${visual.bg} border ${visual.border} flex items-center justify-center shrink-0 select-none shadow-xs`}
+      title={name}
+      aria-hidden="true"
     >
-      {imageUrl && !imgError ? (
-        <img
-          src={imageUrl}
-          alt={name}
-          onError={() => setImgError(true)}
-          className="w-full h-full object-cover"
-          loading="lazy"
-        />
-      ) : (
-        <span className="drop-shadow-2xs leading-none" role="img" aria-hidden="true">
-          {visual.emoji}
-        </span>
-      )}
+      <Icon className={`${iconSize} ${visual.text}`} strokeWidth={2} />
     </div>
   )
 }

@@ -151,18 +151,18 @@ export function translateStructureNamePt(rawName: string): string {
     [/\bvertebra\b/gi, 'Vértebra'],
     [/\bcalcaneus\b/gi, 'Calcâneo'],
     [/\btalus\b/gi, 'Tálus'],
-    [/\bLong head of\b/gi, 'Cabeça Longa —'],
-    [/\bShort head of\b/gi, 'Cabeça Curta —'],
-    [/\bLateral head of\b/gi, 'Cabeça Lateral —'],
-    [/\bMedial head of\b/gi, 'Cabeça Medial —'],
-    [/\bClavicular part of\b/gi, 'Porção Clavicular —'],
-    [/\bSternocostal part of\b/gi, 'Porção Esternocostal —'],
-    [/\bAbdominal part of\b/gi, 'Porção Abdominal —'],
-    [/\bDescending part of\b/gi, 'Porção Descendente —'],
-    [/\bTransverse part of\b/gi, 'Porção Transversa —'],
-    [/\bAscending part of\b/gi, 'Porção Ascendente —'],
-    [/\bSpinal part of\b/gi, 'Porção Espinhal —'],
-    [/\bAcromial part of\b/gi, 'Porção Acromial —'],
+    [/\bLong head of\b/gi, 'Cabeça Longa -'],
+    [/\bShort head of\b/gi, 'Cabeça Curta -'],
+    [/\bLateral head of\b/gi, 'Cabeça Lateral -'],
+    [/\bMedial head of\b/gi, 'Cabeça Medial -'],
+    [/\bClavicular part of\b/gi, 'Porção Clavicular -'],
+    [/\bSternocostal part of\b/gi, 'Porção Esternocostal -'],
+    [/\bAbdominal part of\b/gi, 'Porção Abdominal -'],
+    [/\bDescending part of\b/gi, 'Porção Descendente -'],
+    [/\bTransverse part of\b/gi, 'Porção Transversa -'],
+    [/\bAscending part of\b/gi, 'Porção Ascendente -'],
+    [/\bSpinal part of\b/gi, 'Porção Espinhal -'],
+    [/\bAcromial part of\b/gi, 'Porção Acromial -'],
   ]
 
   for (const [regex, rep] of exactReplacements) {
@@ -1137,11 +1137,11 @@ export function AnatomicalBody3D({
         {/* Overlay de Carregamento do Modelo 3D Z-Anatomy */}
         {!modelLoaded && !loadError && (
           <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-xs flex flex-col items-center justify-center gap-2.5 p-6 text-center">
-            <Layers className="w-7 h-7 text-emerald-400 animate-pulse" />
+            <Layers className="w-7 h-7 text-emerald-400" />
             <div className="text-xs font-bold text-slate-100">
               Carregando Atlas Anatômico 3D (634 Músculos & Ossos)... {loadProgress}%
             </div>
-            <div className="w-44 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div className="w-44 h-1.5 bg-slate-800 rounded-md overflow-hidden">
               <div
                 className="h-full bg-emerald-500 transition-all duration-200"
                 style={{ width: `${Math.max(8, loadProgress)}%` }}
@@ -1342,10 +1342,11 @@ export function AnatomicalBody3D({
             </div>
             <button
               type="button"
+              aria-label="Fechar detalhes da estrutura selecionada"
               onClick={() => setSelectedLandmark(null)}
-              className="text-[10px] text-slate-400 hover:text-white px-1.5 py-0.5"
+              className="text-slate-400 hover:text-white p-1 rounded"
             >
-              ✕
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         ) : (

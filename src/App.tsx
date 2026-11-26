@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { ConsentGate } from '@/components/shared/ConsentGate'
+import { CookieNoticeBanner } from '@/components/shared/CookieNoticeBanner'
 import { FlaskConical } from 'lucide-react'
 
 const LegalDocumentPage = lazy(() =>
@@ -32,7 +33,7 @@ const queryClient = new QueryClient()
 function FullPageLoader() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-background">
-      <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center animate-pulse shadow-md">
+      <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
         <FlaskConical className="w-6 h-6" />
       </div>
       <p className="text-xs font-semibold text-muted-foreground">Carregando ambiente clínico MyLabs...</p>
@@ -101,12 +102,22 @@ export default function App() {
                 <Route path="/login/nutri" element={<AuthPage portalRole="nutritionist" />} />
                 <Route path="/login/nutricionista" element={<AuthPage portalRole="nutritionist" />} />
                 <Route path="/login/suporte" element={<AuthPage portalRole="admin" />} />
+                <Route path="/admin" element={<Navigate to="/login/suporte" replace />} />
+                <Route path="/admin/*" element={<Navigate to="/login/suporte" replace />} />
 
-                <Route path="/configurar-suporte" element={<ExternalSupportSetupPage />} />
+                <Route
+                  path="/configurar-suporte"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']} fallbackLoginPath="/login/suporte">
+                      <ExternalSupportSetupPage />
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* Documentos legais públicos (acessíveis sem login) */}
                 <Route path="/termos" element={<LegalDocumentPage docId="terms" />} />
                 <Route path="/privacidade" element={<LegalDocumentPage docId="privacy" />} />
+                <Route path="/reembolso" element={<LegalDocumentPage docId="refund" />} />
 
                 {/* Portal exclusivo do Cliente (isolado de Nutri e Suporte) */}
                 <Route
@@ -141,6 +152,7 @@ export default function App() {
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
+            <CookieNoticeBanner />
           </BrowserRouter>
           <Toaster richColors position="bottom-right" />
         </AuthProvider>

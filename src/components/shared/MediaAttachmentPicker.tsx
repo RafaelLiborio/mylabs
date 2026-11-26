@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { buildSafeImageFileName, validateImageFile } from '@/lib/fileValidation'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -98,17 +99,20 @@ export function MediaAttachmentPicker({
     return () => stopCamera()
   }, [open, tab, selectedFile, startCamera, stopCamera])
 
-  const handleFileChosen = (file: File | undefined | null) => {
+  const handleFileChosen = async (file: File | undefined | null) => {
     if (!file) return
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('Arquivo muito grande. O limite máximo é 10 MB.')
+    const check = await validateImageFile(file)
+    if (!check.ok) {
+      toast.error(check.error)
       return
     }
-    setSelectedFile(file)
-    const url = URL.createObjectURL(file)
+    const safeName = buildSafeImageFileName(file.name, check.ext)
+    const cleanFile = new File([file], safeName, { type: check.mime })
+    setSelectedFile(cleanFile)
+    const url = URL.createObjectURL(cleanFile)
     setPreviewUrl(url)
     if (!caption) {
-      setCaption(file.name.replace(/\.[^.]+$/, ''))
+      setCaption(safeName.replace(/\.[^.]+$/, ''))
     }
   }
 
@@ -273,6 +277,7 @@ export function MediaAttachmentPicker({
                     onClick={handleResetSelection}
                     className="absolute top-2 right-2 h-8 w-8 rounded-xl"
                     title="Trocar imagem"
+                    aria-label="Remover imagem selecionada"
                   >
                     <X className="w-4 h-4" />
                   </Button>

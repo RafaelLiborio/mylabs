@@ -1,12 +1,13 @@
 /**
- * Documentos legais do MyLabs: Termos de Uso e Política de Privacidade (LGPD — Lei nº 13.709/2018).
+ * Documentos legais do MyLabs: Termos de Uso, Política de Privacidade (LGPD, Lei nº 13.709/2018)
+ * e Política de Cancelamento e Reembolso (CDC, Lei nº 8.078/1990).
  *
  * IMPORTANTE: ao alterar o TEXTO de um documento de forma material, incremente a versão correspondente
  * em LEGAL_VERSIONS. Todos os usuários serão solicitados a aceitar novamente no próximo acesso
  * (ver ConsentGate). O histórico de aceites fica na tabela public.legal_acceptances.
  */
 
-export type LegalDocumentId = 'terms' | 'privacy'
+export type LegalDocumentId = 'terms' | 'privacy' | 'refund'
 export type ConsentDocumentId = 'terms' | 'privacy' | 'health_data' | 'professional_duties'
 
 export const LEGAL_VERSIONS: Record<ConsentDocumentId, string> = {
@@ -388,7 +389,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         },
         {
           type: 'p',
-          text: 'As bases legais aplicáveis são o seu consentimento específico e destacado para finalidades determinadas (art. 11, I) — coletado no aceite da Plataforma — e a tutela da saúde, em procedimento realizado por profissional de saúde (art. 11, II, “f”), no caso do atendimento prestado pelo nutricionista.',
+          text: 'As bases legais aplicáveis são o seu consentimento específico e destacado para finalidades determinadas (art. 11, I), coletado no aceite da Plataforma, e a tutela da saúde, em procedimento realizado por profissional de saúde (art. 11, II, “f”), no caso do atendimento prestado pelo nutricionista.',
         },
         {
           type: 'note',
@@ -403,11 +404,11 @@ export const PRIVACY_POLICY: LegalDocument = {
         {
           type: 'ul',
           items: [
-            'Prestar o acompanhamento nutricional e de treino (prescrever, registrar, exibir evolução e relatórios) — execução do contrato / tutela da saúde / consentimento.',
-            'Autenticar usuários, isolar o acesso por perfil e proteger a Plataforma contra acessos indevidos e fraudes — legítimo interesse e segurança (LGPD, art. 6º, VII).',
-            'Atender solicitações de suporte e de titulares de dados — execução do contrato e obrigação legal.',
-            'Manter o registro de aceite dos documentos legais — cumprimento de obrigação legal e exercício regular de direitos (art. 8º, §2º).',
-            'Gerar relatórios periódicos de acompanhamento ao nutricionista, conforme a periodicidade por ele definida — execução do contrato / tutela da saúde.',
+            'Prestar o acompanhamento nutricional e de treino (prescrever, registrar, exibir evolução e relatórios): execução do contrato, tutela da saúde e consentimento.',
+            'Autenticar usuários, isolar o acesso por perfil e proteger a Plataforma contra acessos indevidos e fraudes: legítimo interesse e segurança (LGPD, art. 6º, VII).',
+            'Atender solicitações de suporte e de titulares de dados: execução do contrato e obrigação legal.',
+            'Manter o registro de aceite dos documentos legais: cumprimento de obrigação legal e exercício regular de direitos (art. 8º, §2º).',
+            'Gerar relatórios periódicos de acompanhamento ao nutricionista, conforme a periodicidade por ele definida: execução do contrato e tutela da saúde.',
             'Cumprir obrigações legais e regulatórias e responder a ordens de autoridades.',
           ],
         },
@@ -426,7 +427,7 @@ export const PRIVACY_POLICY: LegalDocument = {
           items: [
             'Seu nutricionista responsável: acessa os dados clínicos e as fotos dos clientes a ele vinculados. Nenhum outro nutricionista tem acesso.',
             'Equipe de Suporte/Administração do MyLabs: acesso restrito para administrar contas, prestar suporte técnico e atender solicitações de privacidade.',
-            'Provedores de infraestrutura (operadores): Supabase (banco de dados, autenticação e armazenamento de arquivos, com projeto hospedado na região de São Paulo — Brasil) e GitHub Pages (hospedagem dos arquivos do site). Eles tratam dados somente para viabilizar o serviço.',
+            'Provedores de infraestrutura (operadores): Supabase (banco de dados, autenticação e armazenamento de arquivos, com projeto hospedado na região de São Paulo, Brasil) e GitHub Pages (hospedagem dos arquivos do site). Eles tratam dados somente para viabilizar o serviço.',
             'WhatsApp (Meta): somente quando você, por iniciativa própria, envia uma mensagem pronta; o conteúdo segue as regras do WhatsApp.',
             'Autoridades públicas: quando exigido por lei ou ordem judicial.',
           ],
@@ -455,7 +456,7 @@ export const PRIVACY_POLICY: LegalDocument = {
           type: 'ul',
           items: [
             'Dados da conta e do acompanhamento: enquanto a conta estiver ativa e o vínculo com o nutricionista existir.',
-            'Após o encerramento ou o pedido de eliminação: os dados são eliminados ou anonimizados, ressalvadas as hipóteses de conservação autorizadas no art. 16 da LGPD — por exemplo, cumprimento de obrigação legal ou regulatória, inclusive o dever do nutricionista de manter o registro do atendimento conforme as normas do Conselho Federal de Nutricionistas, e exercício regular de direitos.',
+            'Após o encerramento ou o pedido de eliminação: os dados são eliminados ou anonimizados, ressalvadas as hipóteses de conservação autorizadas no art. 16 da LGPD (por exemplo, cumprimento de obrigação legal ou regulatória, inclusive o dever do nutricionista de manter o registro do atendimento conforme as normas do Conselho Federal de Nutricionistas, e exercício regular de direitos).',
             'Registros de acesso e de segurança: mantidos pelo prazo necessário às finalidades de segurança e por, no mínimo, o período previsto no Marco Civil da Internet (art. 15, seis meses).',
             'Registro de aceite dos documentos legais: mantido enquanto a conta existir, para comprovação do consentimento.',
           ],
@@ -469,7 +470,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         {
           type: 'ul',
           items: [
-            'Controle de acesso por perfil e isolamento no próprio banco de dados (segurança em nível de linha — RLS): cada usuário só enxerga o que lhe é permitido.',
+            'Controle de acesso por perfil e isolamento no próprio banco de dados (segurança em nível de linha, RLS): cada usuário só enxerga o que lhe é permitido.',
             'Comunicação criptografada (HTTPS/TLS) e senhas armazenadas apenas de forma protegida (hash) pelo serviço de autenticação.',
             'Fotos do diário, de evolução e anexos em armazenamento privado, acessíveis por links temporários e somente a quem tem permissão.',
             'Registro versionado e imutável dos aceites legais.',
@@ -538,7 +539,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       blocks: [
         {
           type: 'p',
-          text: 'Esta Política pode ser atualizada para refletir mudanças legais ou de funcionalidades. A versão vigente é sempre identificada por data. Para mudanças relevantes — especialmente novas finalidades ou novos compartilhamentos — pediremos um novo aceite.',
+          text: 'Esta Política pode ser atualizada para refletir mudanças legais ou de funcionalidades. A versão vigente é sempre identificada por data. Para mudanças relevantes, especialmente novas finalidades ou novos compartilhamentos, pediremos um novo aceite.',
         },
       ],
     },
@@ -555,9 +556,75 @@ export const PRIVACY_POLICY: LegalDocument = {
   ],
 }
 
+export const REFUND_POLICY: LegalDocument = {
+  id: 'refund',
+  title: 'Política de Cancelamento e Reembolso',
+  subtitle: 'Condições de desistência, cancelamento de planos da plataforma MyLabs e relação com serviços particulares.',
+  version: LEGAL_VERSIONS.terms,
+  sections: [
+    {
+      id: 'distincao',
+      title: '1. Plataforma MyLabs vs. atendimento do nutricionista',
+      blocks: [
+        {
+          type: 'p',
+          text: 'O MyLabs oferece infraestrutura tecnológica para acompanhamento nutricional, periodização de treinos e avaliação física. Consultas presenciais ou remotas e honorários profissionais podem ser contratados diretamente com o nutricionista responsável, fora da Plataforma.',
+        },
+        {
+          type: 'note',
+          text: 'Valores pagos diretamente ao nutricionista por consultas particulares seguem os termos combinados com o próprio profissional. Para solicitações referentes a planos ou assinaturas contratadas diretamente com o MyLabs, aplicam-se as regras abaixo.',
+        },
+      ],
+    },
+    {
+      id: 'arrependimento',
+      title: '2. Direito de arrependimento (7 dias, CDC art. 49)',
+      blocks: [
+        {
+          type: 'p',
+          text: 'Conforme o art. 49 do Código de Defesa do Consumidor (Lei nº 8.078/1990), o contratante de plano ou assinatura digital adquirida a distância pode exercer o direito de arrependimento no prazo de até 7 dias corridos a contar da contratação inicial ou do pagamento, com devolução integral do valor pago pelo plano da Plataforma.',
+        },
+      ],
+    },
+    {
+      id: 'cancelamento-planos',
+      title: '3. Cancelamento de assinaturas e renovações',
+      blocks: [
+        {
+          type: 'ul',
+          items: [
+            'Você pode solicitar o cancelamento de renovações futuras a qualquer momento antes do fechamento do ciclo seguinte, sem multa rescisória.',
+            'Após o cancelamento de um ciclo já iniciado fora do prazo legal de 7 dias, o acesso permanece ativo até o término do período contratado, salvo falha técnica imputável exclusivamente à Plataforma não sanada em prazo razoável.',
+            'Contas vinculadas pelo nutricionista sem cobrança direta ao cliente são encerradas mediante solicitação do titular ou do profissional responsável.',
+          ],
+        },
+      ],
+    },
+    {
+      id: 'prazos-estorno',
+      title: '4. Como solicitar e prazos de estorno',
+      blocks: [
+        {
+          type: 'p',
+          text: `Para solicitar cancelamento ou reembolso, entre em contato informando o e-mail de acesso pela Central de Privacidade, ${contactLine}ou pelo WhatsApp de suporte ${LEGAL_CONFIG.supportWhatsappDisplay}.`,
+        },
+        {
+          type: 'ul',
+          items: [
+            'Confirmação do recebimento da solicitação em até 2 dias úteis.',
+            'Transferências via PIX: estorno processado em até 5 dias úteis na mesma titularidade.',
+            'Cartão de crédito: solicitação de estorno enviada à operadora em até 5 dias úteis, aparecendo conforme o fechamento da fatura do banco emissor.',
+          ],
+        },
+      ],
+    },
+  ],
+}
+
 export const LEGAL_DOCUMENTS: Record<LegalDocumentId, LegalDocument> = {
   terms: TERMS_OF_USE,
   privacy: PRIVACY_POLICY,
+  refund: REFUND_POLICY,
 }
 
 /** Quais aceites são exigidos de cada perfil. */

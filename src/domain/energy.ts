@@ -16,7 +16,7 @@ export interface EnergyInput {
   weightKg: number
   heightCm: number
   age: number
-  /** massa livre de gordura (kg) — exigida por Cunningham/Katch-McArdle */
+  /** massa livre de gordura (kg), exigida por Cunningham/Katch-McArdle */
   leanMassKg?: number
 }
 
@@ -76,7 +76,7 @@ export function bmrHarrisBenedict({ sex, weightKg, heightCm, age }: EnergyInput)
     : 447.593 + 9.247 * weightKg + 3.098 * heightCm - 4.33 * age
 }
 
-/** Schofield (FAO/WHO/UNU, 1985) — equações baseadas no peso, por faixa etária. */
+/** Schofield (FAO/WHO/UNU, 1985): equações baseadas no peso, por faixa etária. */
 export function bmrFaoWho({ sex, weightKg, age }: EnergyInput): number {
   if (sex === 'male') {
     if (age < 18) return 17.686 * weightKg + 658.2
@@ -137,7 +137,7 @@ export interface MacroTargets {
 
 /**
  * Distribuição de macros: proteína em g/kg (ISSN, Jäger et al. 2017: 1,4–2,0 g/kg para
- * praticantes de exercício), gordura em % das calorias (mín. 20% — DRI/IOM) e o restante em carboidratos.
+ * praticantes de exercício), gordura em % das calorias (mín. 20%, DRI/IOM) e o restante em carboidratos.
  */
 export function suggestMacros(params: {
   kcal: number

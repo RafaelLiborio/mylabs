@@ -136,7 +136,7 @@ export function PrivacyCenterDialog({
         kind: 'system',
         from_user: user.id,
         to_user: null,
-        category: `LGPD — ${type.label}`.slice(0, 120),
+        category: `LGPD: ${type.label}`.slice(0, 120),
         message,
         status: 'sent',
       })

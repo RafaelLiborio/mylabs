@@ -69,13 +69,13 @@ export function ExerciseAnimationBox({
         ))
       ) : (
         <div className="flex flex-col items-center justify-center text-muted-foreground p-2 text-center">
-          <Dumbbell className="w-6 h-6 text-emerald-600 mb-1 animate-pulse" />
+          <Dumbbell className="w-6 h-6 text-emerald-600 mb-1" />
           <span className="text-[10px] font-medium leading-tight">Ver GIF</span>
         </div>
       )}
 
       <span className="absolute top-1.5 left-1.5 z-10 px-1.5 py-0.5 rounded-md bg-slate-900/85 text-white text-[9px] font-bold tracking-wider uppercase flex items-center gap-1">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+        <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400" />
         Ver GIF
       </span>
 
@@ -180,7 +180,7 @@ export function ExercisePreview({
               <ol className="space-y-2 text-xs sm:text-sm text-foreground">
                 {instructionsPt.map((step, i) => (
                   <li key={i} className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
                       {i + 1}
                     </span>
                     <span className="leading-relaxed">{step}</span>

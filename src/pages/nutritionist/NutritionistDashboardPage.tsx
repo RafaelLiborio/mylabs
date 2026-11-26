@@ -165,7 +165,7 @@ export function NutritionistDashboardPage() {
       {!activeClient ? (
         <div className="space-y-6">
           {/* Banner Superior do Módulo de Controle */}
-          <Card className="rounded-3xl border-border bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950 text-white shadow-md">
+          <Card className="rounded-3xl border-border bg-slate-900 text-white shadow-md">
             <CardContent className="p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
@@ -185,7 +185,7 @@ export function NutritionistDashboardPage() {
                   )}
                 </div>
                 <h1 className="font-display font-extrabold text-xl sm:text-2xl">
-                  Controle de Clientes — {profile?.full_name || 'Nutricionista'}
+                  Controle de Clientes - {profile?.full_name || 'Nutricionista'}
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-300">
                   Aqui estão listados exclusivamente os clientes cadastrados por você. Clique em qualquer cliente abaixo para abrir o prontuário completo de Dieta, Treinos, Antropometria e Relatórios.
@@ -278,8 +278,8 @@ export function NutritionistDashboardPage() {
                       .toUpperCase()
                     const birthYear = c.birth_date ? new Date(c.birth_date).getFullYear() : 1996
                     const age = Math.max(16, Math.min(90, new Date().getFullYear() - birthYear))
-                    const weight = assess?.weight_kg ? `${Number(assess.weight_kg).toFixed(1)} kg` : '—'
-                    const bf = assess?.results?.bodyFatPct ? `${assess.results.bodyFatPct}%` : '—'
+                    const weight = assess?.weight_kg ? `${Number(assess.weight_kg).toFixed(1)} kg` : '-'
+                    const bf = assess?.results?.bodyFatPct ? `${assess.results.bodyFatPct}%` : '-'
 
                     return (
                       <Card
@@ -331,7 +331,7 @@ export function NutritionistDashboardPage() {
                             </div>
                             <div className="flex items-center gap-1.5 text-muted-foreground">
                               <Mail className="w-3.5 h-3.5 shrink-0" />
-                              <span className="truncate">{cProf?.email || '—'}</span>
+                              <span className="truncate">{cProf?.email || '-'}</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-muted-foreground">
                               <Phone className="w-3.5 h-3.5 shrink-0" />
@@ -376,7 +376,7 @@ export function NutritionistDashboardPage() {
         /* ==================== VISÃO 2: TELA CLÍNICA DO CLIENTE SELECIONADO (PÁGINAS 7 & 8 DO PDF) ==================== */
         <div className="space-y-6">
           {/* Barra Superior do Paciente Ativo + Botão Voltar ao Módulo de Controle (Organizada em 2 linhas alinhadas) */}
-          <Card className="rounded-3xl border-border bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950 text-white shadow-md">
+          <Card className="rounded-3xl border-border bg-slate-900 text-white shadow-md">
             <CardContent className="p-5 sm:p-6 space-y-4">
               {/* Linha 1: Navegação e Troca Rápida de Paciente */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-white/10">
@@ -392,7 +392,7 @@ export function NutritionistDashboardPage() {
                     <span>Voltar aos Meus Clientes</span>
                   </Button>
 
-                  <Badge className="bg-indigo-500/20 text-indigo-200 border-indigo-400/30 gap-1.5 py-1 px-2.5">
+                  <Badge className="bg-emerald-500/20 text-emerald-200 border-emerald-400/30 gap-1.5 py-1 px-2.5">
                     <Users className="w-3.5 h-3.5" />
                     <span>Paciente em Atendimento Clínico ({clients.length} vinculados)</span>
                   </Badge>
@@ -499,7 +499,7 @@ export function NutritionistDashboardPage() {
                 <FileText className="w-4 h-4 text-emerald-600" />
                 <span>Relatórios</span>
                 {unreadReports > 0 && (
-                  <span className="ml-1 px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold">
+                  <span className="ml-1 px-1.5 py-0.2 rounded-md bg-amber-500 text-slate-950 text-[10px] font-bold">
                     {unreadReports}
                   </span>
                 )}

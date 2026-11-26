@@ -118,7 +118,7 @@ export function ClientDashboardPage() {
   const [swapOpen, setSwapOpen] = useState(false)
   const [swapItem, setSwapItem] = useState<{ id: string; grams: number; food: FoodItemMacro } | null>(null)
 
-  // Workout state (by Week and Weekday — NO REST TIMER)
+  // Workout state (by Week and Weekday, NO REST TIMER)
   const [workoutPlan, setWorkoutPlan] = useState<any>(null)
   const [workoutDays, setWorkoutDays] = useState<any[]>([])
   const [selectedWeek, setSelectedWeek] = useState<number>(1)
@@ -679,7 +679,7 @@ export function ClientDashboardPage() {
         workout_day_id: day.id,
         log_date: todayIso,
         storage_path: storagePath,
-        caption: captured.caption || `Treino concluído — ${day.title} (${todayIso})`,
+        caption: captured.caption || `Treino concluído - ${day.title} (${todayIso})`,
       })
       .select('*')
       .single()
@@ -1177,7 +1177,7 @@ export function ClientDashboardPage() {
                               {meal.meal_time && <span>{String(meal.meal_time).slice(0, 5)}</span>}
                               {photoCount > 0 && (
                                 <span className="text-emerald-700 font-semibold">
-                                  • 📷 {photoCount}
+                                  • {photoCount} foto(s)
                                 </span>
                               )}
                             </div>
@@ -1187,7 +1187,7 @@ export function ClientDashboardPage() {
                           variant={isDone ? 'default' : 'outline'}
                           className={`text-[10px] shrink-0 ${isDone ? 'bg-emerald-600 text-white' : ''}`}
                         >
-                          {isDone ? 'Feita ✓' : 'Marcar'}
+                          {isDone ? 'Feita' : 'Marcar'}
                         </Badge>
                       </button>
                     )
@@ -1340,7 +1340,7 @@ export function ClientDashboardPage() {
 
                       {meal.notes && (
                         <p className="text-[11px] text-muted-foreground bg-muted/40 rounded-lg px-2.5 py-1.5">
-                          💡 {meal.notes}
+                          Obs.: {meal.notes}
                         </p>
                       )}
 
@@ -1350,12 +1350,12 @@ export function ClientDashboardPage() {
                           <div className="flex items-center gap-1.5">
                             <Camera className="w-4 h-4 text-emerald-600" />
                             <span className="text-xs font-bold text-emerald-950">
-                              Diário Fotográfico — {meal.name} ({mealPhotos.length})
+                              Diário Fotográfico - {meal.name} ({mealPhotos.length})
                             </span>
                           </div>
                           <MediaAttachmentPicker
                             triggerLabel="Postar Foto do que Comi"
-                            title={`Postar Foto — ${meal.name}`}
+                            title={`Postar Foto - ${meal.name}`}
                             description="Registre a foto do seu prato nesta refeição para acompanhar sua evolução ao longo dos dias."
                             onConfirmUpload={(captured) => handleUploadMealPhoto(meal, captured)}
                           />
@@ -1519,13 +1519,13 @@ export function ClientDashboardPage() {
                                 className={`gap-1.5 font-semibold ${
                                   allDayExercisesCompleted
                                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                    : 'bg-sky-700 hover:bg-sky-800 text-white'
                                 }`}
                               >
                                 <CheckCircle2 className="w-4 h-4" />
                                 <span>
                                   {allDayExercisesCompleted
-                                    ? 'Treino do Dia Concluído ✓ (Desmarcar Todos)'
+                                    ? 'Treino do Dia Concluído (Desmarcar Todos)'
                                     : 'Concluir Todos os Exercícios do Dia'}
                                 </span>
                               </Button>
@@ -1533,14 +1533,14 @@ export function ClientDashboardPage() {
                           </div>
                         </div>
 
-                        {/* DIÁRIO FOTOGRÁFICO DO DIA DE TREINO (POR DIA DE TREINO, NÃO POR EXERCÍCIO — Requisito 4) */}
-                        <div className="rounded-2xl border border-dashed border-indigo-300 bg-indigo-50/30 p-4 space-y-3">
+                        {/* DIÁRIO FOTOGRÁFICO DO DIA DE TREINO (POR DIA DE TREINO, NÃO POR EXERCÍCIO) */}
+                        <div className="rounded-2xl border border-dashed border-sky-300 bg-sky-50/30 p-4 space-y-3">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="space-y-0.5">
                               <div className="flex items-center gap-2">
-                                <Camera className="w-4 h-4 text-indigo-600" />
-                                <span className="text-xs sm:text-sm font-bold text-indigo-950">
-                                  Fotos do Meu Treino do Dia — {activeWorkoutDay.title} (
+                                <Camera className="w-4 h-4 text-sky-600" />
+                                <span className="text-xs sm:text-sm font-bold text-sky-950">
+                                  Fotos do Meu Treino do Dia - {activeWorkoutDay.title} (
                                   {(workoutPhotosByDayId[activeWorkoutDay.id] || []).length})
                                 </span>
                               </div>
@@ -1551,7 +1551,7 @@ export function ClientDashboardPage() {
 
                             <MediaAttachmentPicker
                               triggerLabel="Postar Foto do Treino do Dia"
-                              title={`Registrar Foto — ${activeWorkoutDay.title}`}
+                              title={`Registrar Foto - ${activeWorkoutDay.title}`}
                               description="Envie ou capture uma foto do seu treino deste dia para acompanhar sua evolução."
                               onConfirmUpload={(captured) =>
                                 handleUploadWorkoutDayPhoto(activeWorkoutDay, captured)
@@ -1678,7 +1678,7 @@ export function ClientDashboardPage() {
 
                                 {we.notes && (
                                   <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-2.5 py-1 inline-block mt-1">
-                                    💡 {we.notes}
+                                    Obs.: {we.notes}
                                   </p>
                                 )}
                               </div>
@@ -1826,7 +1826,7 @@ export function ClientDashboardPage() {
                         <div className="rounded-xl border border-border bg-muted/30 p-3">
                           <span className="text-xs text-muted-foreground">% de Gordura</span>
                           <div className="font-display font-extrabold text-xl text-emerald-700">
-                            {latestAssessment.results?.bodyFatPct ?? '—'}%
+                            {latestAssessment.results?.bodyFatPct ?? '-'}%
                           </div>
                           <Badge variant="secondary" className="mt-1 text-[10px]">
                             {latestAssessment.results?.bodyFatCategory || 'Avaliado'}
@@ -1835,21 +1835,21 @@ export function ClientDashboardPage() {
 
                         <div className="rounded-xl border border-border bg-muted/30 p-3">
                           <span className="text-xs text-muted-foreground">Massa Livre de Gordura</span>
-                          <div className="font-display font-extrabold text-xl text-indigo-700">
-                            {latestAssessment.results?.leanMassKg ?? '—'} kg
+                          <div className="font-display font-extrabold text-xl text-sky-700">
+                            {latestAssessment.results?.leanMassKg ?? '-'} kg
                           </div>
                           <span className="text-[11px] text-muted-foreground">
-                            FFMI: {latestAssessment.results?.ffmi ?? '—'} kg/m²
+                            FFMI: {latestAssessment.results?.ffmi ?? '-'} kg/m²
                           </span>
                         </div>
 
                         <div className="rounded-xl border border-border bg-muted/30 p-3">
                           <span className="text-xs text-muted-foreground">Massa Gorda</span>
                           <div className="font-display font-extrabold text-xl text-amber-700">
-                            {latestAssessment.results?.fatMassKg ?? '—'} kg
+                            {latestAssessment.results?.fatMassKg ?? '-'} kg
                           </div>
                           <span className="text-[11px] text-muted-foreground">
-                            RCQ: {latestAssessment.results?.whr ?? '—'} ({latestAssessment.results?.whrRisk || 'Normal'})
+                            RCQ: {latestAssessment.results?.whr ?? '-'} ({latestAssessment.results?.whrRisk || 'Normal'})
                           </span>
                         </div>
                       </div>
@@ -2105,7 +2105,7 @@ export function ClientDashboardPage() {
                         >
                           <div>
                             <div className="font-semibold text-foreground">
-                              {req.kind === 'nutritionist' ? '🩺 Nutricionista' : '🛠️ Suporte Sistema'} •{' '}
+                              {req.kind === 'nutritionist' ? 'Nutricionista' : 'Suporte Sistema'} •{' '}
                               {req.category}
                             </div>
                             <p className="text-muted-foreground line-clamp-2 mt-0.5">{req.message}</p>

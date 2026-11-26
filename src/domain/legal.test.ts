@@ -37,4 +37,16 @@ describe('documentos legais', () => {
       expect(text).toContain(needle)
     }
   })
+
+  it('a política de reembolso cobre o art. 49 do CDC e prazo de 7 dias', () => {
+    const text = JSON.stringify(LEGAL_DOCUMENTS.refund).toLowerCase()
+    expect(text).toContain('art. 49')
+    expect(text).toContain('7 dias')
+  })
+
+  it('nenhum documento legal contém travessões (—)', () => {
+    for (const doc of Object.values(LEGAL_DOCUMENTS)) {
+      expect(JSON.stringify(doc)).not.toContain('—')
+    }
+  })
 })

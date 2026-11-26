@@ -111,12 +111,12 @@ export function ClientRegisterDialog({ onClientCreated }: ClientRegisterDialogPr
 
   const welcomeWhatsappText = createdCredentials
     ? [
-        `Olá, *${createdCredentials.name}*! Bem-vindo(a) ao *MyLabs*! 🧬`,
+        `Olá, *${createdCredentials.name}*! Bem-vindo(a) ao *MyLabs*!`,
         `Seu acesso exclusivo para acompanhar sua Dieta, Treinos com GIFs e Evolução já está liberado:`,
         '',
-        `🔗 *Rota Exclusiva de Acesso:* /login/cliente`,
-        `📧 *Login (E-mail):* ${createdCredentials.email}`,
-        `🔑 *Senha de Acesso:* ${createdCredentials.password}`,
+        `*Rota Exclusiva de Acesso:* /login/cliente`,
+        `*Login (E-mail):* ${createdCredentials.email}`,
+        `*Senha de Acesso:* ${createdCredentials.password}`,
         '',
         `Qualquer dúvida clínica você pode me chamar diretamente pelo botão de Assistência dentro do app!`,
       ].join('\n')
@@ -338,6 +338,10 @@ export function ClientRegisterDialog({ onClientCreated }: ClientRegisterDialogPr
                 </div>
               </div>
             </div>
+
+            <p className="text-[11px] text-muted-foreground rounded-lg border border-border bg-muted/40 px-3 py-2">
+              LGPD: solicitamos apenas os dados necessários para autenticação e acompanhamento nutricional. O cliente confirmará a Política de Privacidade no primeiro acesso.
+            </p>
 
             <DialogFooter className="pt-2 pb-1">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>

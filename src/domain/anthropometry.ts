@@ -7,7 +7,7 @@
  * - Faulkner JA. Physiology of Swimming and Diving, 1968 (4 dobras)
  * - Siri WE. Body composition from fluid spaces and density, 1961 (%G = (495 / D) - 450)
  * - Hodgdon JA, Beckett MB. Naval Health Research Center, 1984 (US Navy)
- * - OMS (1995/2000) — IMC e Relação Cintura-Quadril (RCQ)
+ * - OMS (1995/2000): IMC e Relação Cintura-Quadril (RCQ)
  * - Ashwell M, Hsieh SD. Int J Food Sci Nutr 2005;56:303-307 (Relação Cintura-Estatura)
  * - Schutz Y, Kyle UUG, Pichard C. Int J Obes 2002;26:953-960 (FFMI)
  */
@@ -107,7 +107,7 @@ export interface ProtocolMeta {
 export const ANTHROPOMETRY_PROTOCOLS: ProtocolMeta[] = [
   {
     id: 'jackson_pollock_3',
-    label: 'Jackson & Pollock — 3 Dobras',
+    label: 'Jackson & Pollock (3 Dobras)',
     reference: 'Jackson & Pollock (1978) / Jackson, Pollock & Ward (1980) + Siri (1961)',
     description: 'Rápido e validado clinicamente. Homens: Peitoral, Abdominal e Coxa. Mulheres: Tricipital, Supra-ilíaca e Coxa.',
     requiredSkinfolds: (sex) => (sex === 'male' ? ['chest', 'abdomen', 'thigh'] : ['triceps', 'suprailiac', 'thigh']),
@@ -115,7 +115,7 @@ export const ANTHROPOMETRY_PROTOCOLS: ProtocolMeta[] = [
   },
   {
     id: 'jackson_pollock_7',
-    label: 'Jackson & Pollock — 7 Dobras',
+    label: 'Jackson & Pollock (7 Dobras)',
     reference: 'Jackson & Pollock (1978, Br J Nutr) + Siri (1961)',
     description: 'Padrão-ouro em avaliação esportiva e clínica para mapeamento completo de gordura subcutânea.',
     requiredSkinfolds: () => ['chest', 'midaxillary', 'triceps', 'subscapular', 'abdomen', 'suprailiac', 'thigh'],
@@ -123,7 +123,7 @@ export const ANTHROPOMETRY_PROTOCOLS: ProtocolMeta[] = [
   },
   {
     id: 'durnin_womersley_4',
-    label: 'Durnin & Womersley — 4 Dobras',
+    label: 'Durnin & Womersley (4 Dobras)',
     reference: 'Durnin & Womersley (1974, Br J Nutr) + Siri (1961)',
     description: 'Indicado para população geral e clínica (Bicipital, Tricipital, Subescapular e Supra-ilíaca).',
     requiredSkinfolds: () => ['biceps', 'triceps', 'subscapular', 'suprailiac'],
@@ -131,7 +131,7 @@ export const ANTHROPOMETRY_PROTOCOLS: ProtocolMeta[] = [
   },
   {
     id: 'faulkner_4',
-    label: 'Faulkner — 4 Dobras',
+    label: 'Faulkner (4 Dobras)',
     reference: 'Faulkner JA (1968)',
     description: 'Clássico em avaliação física no Brasil (Tricipital, Subescapular, Supra-ilíaca e Abdominal).',
     requiredSkinfolds: () => ['triceps', 'subscapular', 'suprailiac', 'abdomen'],
@@ -273,7 +273,7 @@ export function classifyBodyFat(sex: Sex, bf: number): string {
 }
 
 export function classifyWhr(sex: Sex, whr: number | null): string {
-  if (whr == null) return '—'
+  if (whr == null) return '-'
   if (sex === 'male') {
     if (whr < 0.9) return 'Baixo risco'
     if (whr < 1.0) return 'Risco moderado'

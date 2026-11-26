@@ -92,7 +92,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
         user_agent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 400) : null,
       }))
       const { error } = await supabase.from('legal_acceptances').insert(rows)
-      // 23505 = aceite já registrado (ex.: duplo clique) — tratado como sucesso
+      // 23505 = aceite já registrado (ex.: duplo clique), tratado como sucesso
       if (error && error.code !== '23505') throw error
       toast.success('Aceite registrado. Obrigado!')
       setState('ok')
@@ -112,7 +112,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-slate-100 flex items-center justify-center p-4">
       {state === 'loading' && (
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center animate-pulse shadow-md">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
             <FlaskConical className="w-6 h-6" />
           </div>
           <span className="text-xs font-semibold">Verificando termos e privacidade...</span>
@@ -136,7 +136,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
       )}
 
       <AlertDialog open={state === 'needed'}>
-        <AlertDialogContent className="sm:max-w-xl max-h-[92vh] gap-4">
+        <AlertDialogContent className="sm:max-w-xl max-h-[92vh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden gap-4">
           <AlertDialogHeader>
             <div className="flex items-center gap-2">
               <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
@@ -153,7 +153,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <div className="max-h-[46vh] overflow-y-auto pr-2 -mr-2" data-testid="consent-scroll">
+          <div className="min-h-0 max-h-[46vh] overflow-y-auto pr-2 -mr-2" data-testid="consent-scroll">
             <div className="space-y-4">
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5 space-y-1.5">
                 <span className="text-xs font-bold text-emerald-900 block">Em resumo</span>

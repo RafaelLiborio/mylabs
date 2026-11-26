@@ -52,6 +52,12 @@ export function AppShell({
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-emerald-700 focus:px-3 focus:py-2 focus:text-xs focus:font-semibold focus:text-white focus:shadow-md"
+      >
+        Ir para o conteúdo principal
+      </a>
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-border shadow-2xs no-print">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3">
           {/* Identidade Visual MyLabs */}
@@ -128,7 +134,9 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-6">{children}</main>
+      <main id="main-content" tabIndex={-1} className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-6 outline-none">
+        {children}
+      </main>
 
       <footer className="border-t border-border bg-white mt-12 py-4 px-4 sm:px-6 no-print">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">

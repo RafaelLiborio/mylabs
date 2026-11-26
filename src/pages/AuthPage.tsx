@@ -15,7 +15,6 @@ import {
   Lock,
   Mail,
   MessageSquare,
-  Settings2,
   ShieldCheck,
   Sparkles,
   Stethoscope,
@@ -54,11 +53,11 @@ const PORTALS: Record<LoginRolePortal, PortalMeta> = {
   nutritionist: {
     role: 'nutritionist',
     routePath: '/login/nutri',
-    title: 'Acesso do Nutricionista • MyLabs',
+    title: 'Acesso do Nutricionista - MyLabs',
     subtitle: 'Rota exclusiva para nutricionistas credenciados pelo Suporte gerenciarem seus clientes',
-    badgeLabel: 'Rota Exclusiva • Nutricionista',
-    accentBtnClass: 'bg-indigo-600 hover:bg-indigo-700 text-white',
-    headerBgClass: 'bg-gradient-to-r from-slate-900 to-indigo-950',
+    badgeLabel: 'Rota Exclusiva: Nutricionista',
+    accentBtnClass: 'bg-emerald-700 hover:bg-emerald-800 text-white',
+    headerBgClass: 'bg-slate-900',
     demoEmail: 'camila@mylabs.app',
     demoLabel: 'Dra. Camila Rocha (Nutricionista)',
     icon: <Stethoscope className="w-4 h-4" />,
@@ -66,13 +65,13 @@ const PORTALS: Record<LoginRolePortal, PortalMeta> = {
   admin: {
     role: 'admin',
     routePath: '/login/suporte',
-    title: 'Acesso do Suporte & Admin • MyLabs',
+    title: 'Acesso do Suporte & Admin - MyLabs',
     subtitle: 'Rota restrita para administração do sistema, cadastro de nutricionistas e suporte',
-    badgeLabel: 'Rota Exclusiva • Suporte / Admin',
+    badgeLabel: 'Rota Exclusiva: Suporte / Admin',
     accentBtnClass: 'bg-amber-600 hover:bg-amber-700 text-white',
-    headerBgClass: 'bg-gradient-to-r from-slate-900 to-amber-950',
-    demoEmail: 'suporte@mylabs.app',
-    demoLabel: 'Rafael Libório (Suporte / Admin)',
+    headerBgClass: 'bg-slate-900',
+    demoEmail: '',
+    demoLabel: '',
     icon: <ShieldCheck className="w-4 h-4" />,
   },
 }
@@ -147,6 +146,7 @@ export function AuthPage({ portalRole = 'client' }: { portalRole?: LoginRolePort
   }
 
   const handleQuickLogin = async () => {
+    if (!portal.demoEmail) return
     setLoading(true)
     try {
       await invokeManageUsers({ action: 'bootstrap_demo' }).catch(() => null)
@@ -193,13 +193,13 @@ export function AuthPage({ portalRole = 'client' }: { portalRole?: LoginRolePort
           <div className="space-y-3">
             <Badge className="bg-emerald-600 text-white gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
-              Rotas de Acesso Exclusivas por Perfil
+              Acesso Autenticado por Perfil
             </Badge>
             <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 leading-tight">
-              Prescrição nutricional, periodização de treinos com GIFs em português e evolução antropométrica sem atrito.
+              Cardápios com base TACO 4ª Ed., treinos periodizados por músculo e antropometria clínica no mesmo prontuário.
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Cada perfil possui sua própria rota de entrada autenticada. O credenciamento e cadastro de novos nutricionistas é realizado exclusivamente pelo módulo de Suporte.
+              Clientes acessam dieta, checklist diário, treinos e evolução em rota exclusiva; nutricionistas acompanham apenas os pacientes sob sua responsabilidade.
             </p>
           </div>
 
@@ -214,7 +214,7 @@ export function AuthPage({ portalRole = 'client' }: { portalRole?: LoginRolePort
               </p>
             </div>
             <div className="rounded-2xl border border-border bg-white/80 p-3.5 shadow-2xs space-y-1">
-              <div className="flex items-center gap-1.5 font-bold text-indigo-700">
+              <div className="flex items-center gap-1.5 font-bold text-sky-700">
                 <MessageSquare className="w-4 h-4" />
                 <span>WhatsApp Duplo Integrado</span>
               </div>
@@ -222,26 +222,6 @@ export function AuthPage({ portalRole = 'client' }: { portalRole?: LoginRolePort
                 Mensagens prontas para o WhatsApp do Nutricionista ou para o Suporte do Sistema.
               </p>
             </div>
-          </div>
-
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 flex items-center justify-between gap-3">
-            <div className="space-y-0.5">
-              <div className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                <Settings2 className="w-4 h-4 text-amber-700" />
-                <span>Dono do Sistema • Configurar WhatsApp do Suporte</span>
-              </div>
-              <p className="text-[11px] text-amber-900/80">
-                Tela externa para cadastrar o seu número de WhatsApp que receberá os chamados técnicos do sistema.
-              </p>
-            </div>
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="shrink-0 bg-white border-amber-300 text-amber-950 hover:bg-amber-100"
-            >
-              <Link to="/configurar-suporte">Configurar Número</Link>
-            </Button>
           </div>
         </div>
 
@@ -348,7 +328,7 @@ export function AuthPage({ portalRole = 'client' }: { portalRole?: LoginRolePort
               </p>
 
               {portalRole === 'nutritionist' && (
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 text-xs text-indigo-950">
+                <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-3 text-xs text-sky-950">
                   <strong>Credenciamento de Nutricionistas:</strong> O cadastro de novos nutricionistas é realizado exclusivamente pela equipe de <strong>Suporte / Admin</strong>. Solicite suas credenciais ao administrador da plataforma.
                 </div>
               )}
@@ -359,32 +339,37 @@ export function AuthPage({ portalRole = 'client' }: { portalRole?: LoginRolePort
                 </div>
               )}
 
-              {/* Acesso Rápido da Rota Atual */}
-              <div className="space-y-3 pt-1">
-                <div className="flex items-center gap-2">
-                  <Separator className="flex-1" />
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Demonstração Homologada desta Rota (1 Clique)
-                  </span>
-                  <Separator className="flex-1" />
+              {portalRole === 'admin' ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-950">
+                  Acesso restrito a administradores autorizados. Informe seu e-mail e senha cadastrados.
                 </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={loading}
-                  onClick={handleQuickLogin}
-                  className="w-full py-3 flex items-center justify-between px-4 border-border hover:bg-muted/60"
-                >
-                  <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-                    {portal.icon}
-                    <span>Entrar agora como {portal.demoLabel}</span>
+              ) : (
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center gap-2">
+                    <Separator className="flex-1" />
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Demonstração desta Rota (1 Clique)
+                    </span>
+                    <Separator className="flex-1" />
                   </div>
-                  <Badge variant="secondary" className="text-[11px] font-mono">
-                    {portal.demoEmail}
-                  </Badge>
-                </Button>
-              </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={handleQuickLogin}
+                    className="w-full py-3 flex items-center justify-between px-4 border-border hover:bg-muted/60"
+                  >
+                    <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+                      {portal.icon}
+                      <span>Entrar agora como {portal.demoLabel}</span>
+                    </div>
+                    <Badge variant="secondary" className="text-[11px] font-mono">
+                      {portal.demoEmail}
+                    </Badge>
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

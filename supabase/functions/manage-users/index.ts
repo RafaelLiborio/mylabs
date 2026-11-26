@@ -73,20 +73,20 @@ Deno.serve(async (req: Request) => {
       const byEmail = new Map((existingProfiles || []).map((p: any) => [p.email.toLowerCase(), p]));
 
       async function ensureAuthUser(params: {
-        email: string;
-        password: string;
-        role: "admin" | "nutritionist" | "client";
-        full_name: string;
-        whatsapp: string;
-        crn?: string;
-        crn_region?: string;
-        specialty?: string;
-        clinic_name?: string;
-        city_state?: string;
-        bio?: string;
+        email: string
+        password: string
+        role: "admin" | "nutritionist" | "client"
+        full_name: string
+        whatsapp: string
+        crn?: string
+        crn_region?: string
+        specialty?: string
+        clinic_name?: string
+        city_state?: string
+        bio?: string
       }) {
-        const found = byEmail.get(params.email.toLowerCase());
-        let uid = found?.id;
+        const found = byEmail.get(params.email.toLowerCase())
+        let uid = found?.id
         if (!uid) {
           const { data: created, error } = await admin.auth.admin.createUser({
             email: params.email,
@@ -94,33 +94,36 @@ Deno.serve(async (req: Request) => {
             email_confirm: true,
             app_metadata: { role: params.role },
             user_metadata: { full_name: params.full_name, crn: params.crn || null },
-          });
+          })
           if (error) {
-            const { data: list } = await admin.auth.admin.listUsers();
-            const u = list?.users?.find((x) => x.email?.toLowerCase() === params.email.toLowerCase());
-            if (!u) throw error;
-            uid = u.id;
+            const { data: list } = await admin.auth.admin.listUsers()
+            const u = list?.users?.find((x) => x.email?.toLowerCase() === params.email.toLowerCase())
+            if (!u) throw error
+            uid = u.id
           } else {
-            uid = created.user.id;
+            uid = created.user.id
           }
         }
 
-        await admin.from("profiles").upsert({
-          id: uid,
-          role: params.role,
-          full_name: params.full_name,
-          email: params.email.toLowerCase(),
-          whatsapp: sanitizeWhatsapp(params.whatsapp),
-          crn: params.crn || null,
-          crn_region: params.crn_region || null,
-          crn_status: "approved",
-          specialty: params.specialty || null,
-          clinic_name: params.clinic_name || null,
-          city_state: params.city_state || null,
-          bio: params.bio || null,
-          active: true,
-        });
-        return uid!;
+        // Only initialize demo profile if it does not exist yet so repeated bootstrap calls never overwrite active state
+        if (!found) {
+          await admin.from("profiles").upsert({
+            id: uid,
+            role: params.role,
+            full_name: params.full_name,
+            email: params.email.toLowerCase(),
+            whatsapp: sanitizeWhatsapp(params.whatsapp),
+            crn: params.crn || null,
+            crn_region: params.crn_region || null,
+            crn_status: "approved",
+            specialty: params.specialty || null,
+            clinic_name: params.clinic_name || null,
+            city_state: params.city_state || null,
+            bio: params.bio || null,
+            active: true,
+          })
+        }
+        return uid!
       }
 
       await ensureAuthUser({
@@ -212,28 +215,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 2. EXTERNAL SYSTEM SUPPORT WHATSAPP SETUP ("tela de cadastro por fora")
-    if (action === "save_system_whatsapp") {
-      const { whatsapp, default_message } = body;
-      const clean = sanitizeWhatsapp(whatsapp);
-      if (!clean || clean.length < 10) {
-        return new Response(
-          JSON.stringify({ error: "Informe um número de WhatsApp válido com DDD." }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
-      await admin.from("app_settings").upsert([
-        { key: "support_whatsapp", value: clean },
-        ...(default_message
-          ? [{ key: "support_whatsapp_message", value: String(default_message) }]
-          : []),
-      ]);
-      return new Response(JSON.stringify({ ok: true, support_whatsapp: clean }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // 3. AUTHENTICATED ACTIONS
+    // 2. AUTHENTICATED ACTIONS
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Sessão expirada ou usuário não autenticado." }), {
@@ -269,6 +251,34 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // 2A. SYSTEM SUPPORT WHATSAPP SETUP (EXCLUSIVO DO SUPORTE / ADMIN)
+    if (action === "save_system_whatsapp") {
+      if (callerProfile.role !== "admin") {
+        return new Response(
+          JSON.stringify({ error: "Apenas o administrador / suporte autenticado pode configurar o WhatsApp do sistema." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const { whatsapp, default_message } = body;
+      const clean = sanitizeWhatsapp(whatsapp);
+      if (!clean || clean.length < 10) {
+        return new Response(
+          JSON.stringify({ error: "Informe um número de WhatsApp válido com DDD." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const safeDefaultMsg = default_message ? String(default_message).trim().slice(0, 500) : "";
+      await admin.from("app_settings").upsert([
+        { key: "support_whatsapp", value: clean },
+        ...(safeDefaultMsg
+          ? [{ key: "support_whatsapp_message", value: safeDefaultMsg }]
+          : []),
+      ]);
+      return new Response(JSON.stringify({ ok: true, support_whatsapp: clean }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // 3A. REGISTER NUTRITIONIST — EXCLUSIVO DO SUPORTE / ADMIN
     if (action === "register_nutritionist") {
       if (callerProfile.role !== "admin") {
@@ -298,12 +308,15 @@ Deno.serve(async (req: Request) => {
         );
       }
 
+      const safeFullName = String(full_name).trim().slice(0, 120);
+      const safeBio = bio ? String(bio).trim().slice(0, 1000) : null;
+
       const { data: created, error: createErr } = await admin.auth.admin.createUser({
         email: String(email).trim().toLowerCase(),
         password: String(password),
         email_confirm: true,
         app_metadata: { role: "nutritionist" },
-        user_metadata: { full_name: String(full_name).trim(), crn: crn || null },
+        user_metadata: { full_name: safeFullName, crn: crn || null },
       });
 
       if (createErr || !created?.user) {
@@ -317,16 +330,16 @@ Deno.serve(async (req: Request) => {
       await admin.from("profiles").upsert({
         id: uid,
         role: "nutritionist",
-        full_name: String(full_name).trim(),
+        full_name: safeFullName,
         email: String(email).trim().toLowerCase(),
         whatsapp: sanitizeWhatsapp(whatsapp),
-        crn: crn ? String(crn).trim() : null,
-        crn_region: crn_region || null,
+        crn: crn ? String(crn).trim().slice(0, 40) : null,
+        crn_region: crn_region ? String(crn_region).slice(0, 60) : null,
         crn_status: "approved",
-        specialty: specialty || null,
-        clinic_name: clinic_name || null,
-        city_state: city_state || null,
-        bio: bio || null,
+        specialty: specialty ? String(specialty).slice(0, 120) : null,
+        clinic_name: clinic_name ? String(clinic_name).slice(0, 120) : null,
+        city_state: city_state ? String(city_state).slice(0, 80) : null,
+        bio: safeBio,
         active: true,
         created_by: callerProfile.id,
       });
@@ -375,12 +388,16 @@ Deno.serve(async (req: Request) => {
       const targetNutriId =
         callerProfile.role === "admin" && nutritionist_id ? nutritionist_id : callerProfile.id;
 
+      const safeClientName = String(full_name).trim().slice(0, 120);
+      const allowedPlans = ["Pro", "Clinic", "Standard", "Personalizado"];
+      const safePlan = allowedPlans.includes(String(plan)) ? String(plan) : "Pro";
+
       const { data: createdAuth, error: createErr } = await admin.auth.admin.createUser({
         email: String(email).trim().toLowerCase(),
         password: String(password),
         email_confirm: true,
         app_metadata: { role: "client" },
-        user_metadata: { full_name: String(full_name).trim() },
+        user_metadata: { full_name: safeClientName },
       });
 
       if (createErr || !createdAuth?.user) {
@@ -395,7 +412,7 @@ Deno.serve(async (req: Request) => {
       await admin.from("profiles").upsert({
         id: clientId,
         role: "client",
-        full_name: String(full_name).trim(),
+        full_name: safeClientName,
         email: String(email).trim().toLowerCase(),
         whatsapp: sanitizeWhatsapp(whatsapp),
         crn_status: "approved",
@@ -409,12 +426,12 @@ Deno.serve(async (req: Request) => {
         birth_date: birth_date || null,
         sex: sex || "male",
         height_cm: height_cm ? Number(height_cm) : 170,
-        goal: goal || "Saúde & Composição Corporal",
+        goal: goal ? String(goal).slice(0, 160) : "Saúde & Composição Corporal",
         activity_level: activity_level || "moderate",
-        restrictions: restrictions || null,
-        clinical_notes: clinical_notes || null,
+        restrictions: restrictions ? String(restrictions).slice(0, 1000) : null,
+        clinical_notes: clinical_notes ? String(clinical_notes).slice(0, 2000) : null,
         water_goal_ml: water_goal_ml ? Number(water_goal_ml) : 2500,
-        plan: plan || "Pro",
+        plan: safePlan,
       });
 
       if (clientInsertErr) {
@@ -530,16 +547,16 @@ Deno.serve(async (req: Request) => {
 
       // 2. Update public.profiles
       const profilePatch: Record<string, any> = {};
-      if (full_name !== undefined) profilePatch.full_name = String(full_name).trim();
+      if (full_name !== undefined) profilePatch.full_name = String(full_name).trim().slice(0, 120);
       if (email !== undefined) profilePatch.email = String(email).trim().toLowerCase();
       if (whatsapp !== undefined) profilePatch.whatsapp = sanitizeWhatsapp(whatsapp);
       if (active !== undefined) profilePatch.active = Boolean(active);
-      if (crn !== undefined) profilePatch.crn = crn ? String(crn).trim() : null;
-      if (crn_region !== undefined) profilePatch.crn_region = crn_region || null;
-      if (specialty !== undefined) profilePatch.specialty = specialty || null;
-      if (clinic_name !== undefined) profilePatch.clinic_name = clinic_name || null;
-      if (city_state !== undefined) profilePatch.city_state = city_state || null;
-      if (bio !== undefined) profilePatch.bio = bio || null;
+      if (crn !== undefined) profilePatch.crn = crn ? String(crn).trim().slice(0, 40) : null;
+      if (crn_region !== undefined) profilePatch.crn_region = crn_region ? String(crn_region).slice(0, 60) : null;
+      if (specialty !== undefined) profilePatch.specialty = specialty ? String(specialty).slice(0, 120) : null;
+      if (clinic_name !== undefined) profilePatch.clinic_name = clinic_name ? String(clinic_name).slice(0, 120) : null;
+      if (city_state !== undefined) profilePatch.city_state = city_state ? String(city_state).slice(0, 80) : null;
+      if (bio !== undefined) profilePatch.bio = bio ? String(bio).slice(0, 1000) : null;
 
       if (Object.keys(profilePatch).length > 0) {
         const { error: profErr } = await admin.from("profiles").update(profilePatch).eq("id", user_id);
@@ -561,9 +578,16 @@ Deno.serve(async (req: Request) => {
         if (client_record.goal !== undefined) cPatch.goal = client_record.goal;
         if (client_record.activity_level) cPatch.activity_level = client_record.activity_level;
         if (client_record.water_goal_ml !== undefined) cPatch.water_goal_ml = Number(client_record.water_goal_ml) || 2500;
-        if (client_record.plan) cPatch.plan = client_record.plan;
-        if (client_record.restrictions !== undefined) cPatch.restrictions = client_record.restrictions || null;
-        if (client_record.clinical_notes !== undefined) cPatch.clinical_notes = client_record.clinical_notes || null;
+        const allowedPlans = ["Pro", "Clinic", "Standard", "Personalizado"];
+        if (client_record.plan && allowedPlans.includes(String(client_record.plan))) {
+          cPatch.plan = String(client_record.plan);
+        }
+        if (client_record.restrictions !== undefined) {
+          cPatch.restrictions = client_record.restrictions ? String(client_record.restrictions).slice(0, 1000) : null;
+        }
+        if (client_record.clinical_notes !== undefined) {
+          cPatch.clinical_notes = client_record.clinical_notes ? String(client_record.clinical_notes).slice(0, 2000) : null;
+        }
 
         if (Object.keys(cPatch).length > 0) {
           const { error: cliErr } = await admin.from("clients").update(cPatch).eq("id", user_id);

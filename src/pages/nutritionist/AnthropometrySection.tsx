@@ -390,7 +390,7 @@ export function AnthropometrySection({
                   <Badge variant="outline">{activeProtocolMeta.reference}</Badge>
                 </div>
                 <h3 className="font-display font-bold text-base text-slate-900">
-                  Evolução Antropométrica Profissional — {clientName}
+                  Evolução Antropométrica Profissional - {clientName}
                 </h3>
                 <p className="text-xs text-muted-foreground">{activeProtocolMeta.description}</p>
               </div>
@@ -570,7 +570,7 @@ export function AnthropometrySection({
 
                   <div className="rounded-xl border border-border bg-muted/30 p-3">
                     <span className="text-muted-foreground block">RCQ (Cint/Quad)</span>
-                    <strong className="font-display text-lg">{liveResults.whr ?? '—'}</strong>
+                    <strong className="font-display text-lg">{liveResults.whr ?? '-'}</strong>
                     <span className="text-[10px] text-muted-foreground block mt-0.5">
                       {liveResults.whrRisk}
                     </span>
@@ -578,7 +578,7 @@ export function AnthropometrySection({
 
                   <div className="rounded-xl border border-border bg-muted/30 p-3">
                     <span className="text-muted-foreground block">RCEst (Cint/Est)</span>
-                    <strong className="font-display text-lg">{liveResults.whtr ?? '—'}</strong>
+                    <strong className="font-display text-lg">{liveResults.whtr ?? '-'}</strong>
                     <span className="text-[10px] text-muted-foreground block mt-0.5">
                       {liveResults.whtr && liveResults.whtr < 0.5 ? 'Saudável (<0.5)' : 'Atenção (≥0.5)'}
                     </span>
@@ -586,12 +586,12 @@ export function AnthropometrySection({
                 </CardContent>
               </Card>
 
-              {/* Dobras Cutâneas (mm) — Somente se o protocolo utilizar dobras */}
+              {/* Dobras Cutâneas (mm) - Somente se o protocolo utilizar dobras */}
               {visibleSkinfoldFields.length > 0 && (
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
                     <h4 className="font-display font-bold text-sm text-slate-900">
-                      Dobras Cutâneas (mm) — Deslize ou ajuste em 1 toque
+                      Dobras Cutâneas (mm) - Deslize ou ajuste em 1 toque
                     </h4>
                     <Badge variant="secondary" className="text-xs">
                       Soma atual: {liveResults.sumSkinfoldsMm} mm
@@ -823,7 +823,7 @@ export function AnthropometrySection({
                 </div>
                 <CardTitle className="font-display text-base mt-1 flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-emerald-600" />
-                  <span>Equações Científicas Consagradas — {clientName}</span>
+                  <span>Equações Científicas Consagradas - {clientName}</span>
                 </CardTitle>
                 <CardDescription className="text-xs">
                   Comparativo simultâneo das equações preditivas aplicadas aos dados atuais do paciente ({weightKg} kg, {heightCm} cm, {clientMeta.age} anos, MLG {liveResults.leanMassKg} kg)
@@ -999,7 +999,7 @@ export function AnthropometrySection({
                       Meus Cálculos Personalizados Cadastrados ({customFormulas.length})
                     </span>
                     {customFormulas.map((cf) => {
-                      let val: string | number = '—'
+                      let val: string | number = '-'
                       try {
                         val = evaluateFormula(cf.expression, currentClientVars)
                       } catch {
@@ -1012,7 +1012,7 @@ export function AnthropometrySection({
                         >
                           <div>
                             <div className="font-bold text-foreground">{cf.name}</div>
-                            <code className="text-[11px] text-indigo-700">{cf.expression}</code>
+                            <code className="text-[11px] text-sky-700">{cf.expression}</code>
                             {cf.reference && (
                               <span className="block text-[10px] text-muted-foreground">{cf.reference}</span>
                             )}

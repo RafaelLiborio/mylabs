@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { LEGAL_CONFIG, LEGAL_DOCUMENTS, type LegalBlock, type LegalDocumentId } from '@/domain/legal'
-import { ArrowLeft, FileText, FlaskConical, Printer, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, FileText, FlaskConical, Printer, RotateCcw, ShieldCheck } from 'lucide-react'
 
 function renderBlock(block: LegalBlock, idx: number) {
   if (block.type === 'ul') {
@@ -35,8 +35,12 @@ function renderBlock(block: LegalBlock, idx: number) {
 export function LegalDocumentPage({ docId }: { docId: LegalDocumentId }) {
   const navigate = useNavigate()
   const doc = LEGAL_DOCUMENTS[docId]
-  const other = LEGAL_DOCUMENTS[docId === 'terms' ? 'privacy' : 'terms']
-  const otherPath = docId === 'terms' ? '/privacidade' : '/termos'
+  const docRoutes: Record<LegalDocumentId, string> = {
+    terms: '/termos',
+    privacy: '/privacidade',
+    refund: '/reembolso',
+  }
+  const siblingIds = (['terms', 'privacy', 'refund'] as LegalDocumentId[]).filter((id) => id !== docId)
 
   const goBack = () => {
     if (window.history.length > 1) navigate(-1)
@@ -102,16 +106,21 @@ export function LegalDocumentPage({ docId }: { docId: LegalDocumentId }) {
               </CardContent>
             </Card>
 
-            <Button asChild variant="outline" className="w-full justify-start gap-2">
-              <Link to={otherPath}>
-                {docId === 'terms' ? (
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                ) : (
-                  <FileText className="w-4 h-4 text-emerald-600" />
-                )}
-                <span>Ler {other.title}</span>
-              </Link>
-            </Button>
+            <div className="space-y-2">
+              {siblingIds.map((sibId) => {
+                const sib = LEGAL_DOCUMENTS[sibId]
+                const Icon =
+                  sibId === 'privacy' ? ShieldCheck : sibId === 'refund' ? RotateCcw : FileText
+                return (
+                  <Button key={sibId} asChild variant="outline" className="w-full justify-start gap-2">
+                    <Link to={docRoutes[sibId]}>
+                      <Icon className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">Ler {sib.title}</span>
+                    </Link>
+                  </Button>
+                )
+              })}
+            </div>
           </div>
         </aside>
 

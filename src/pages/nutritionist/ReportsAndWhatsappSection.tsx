@@ -243,12 +243,12 @@ export function ReportsAndWhatsappSection({
     const reportWhatsappSummary = repData
       ? [
           `Olá, *${clientName}*! Segue o resumo do seu *Relatório Clínico MyLabs* (${activeReport.period_start} a ${activeReport.period_end}):`,
-          `✅ *Adesão à Dieta:* ${repData.diet?.adherence_pct ?? 0}%`,
-          `🏋️ *Execução dos Treinos:* ${repData.workout?.completion_pct ?? 0}%`,
-          `💧 *Hidratação Média:* ${repData.water?.avg_ml ?? 0} mL/dia (Meta: ${repData.water?.goal_ml ?? 3000} mL)`,
-          `⚖️ *Peso Atual:* ${repData.weight?.end ?? '—'} kg (Variação: ${repData.weight?.delta ?? 0} kg)`,
+          `*Adesão à Dieta:* ${repData.diet?.adherence_pct ?? 0}%`,
+          `*Execução dos Treinos:* ${repData.workout?.completion_pct ?? 0}%`,
+          `*Hidratação Média:* ${repData.water?.avg_ml ?? 0} mL/dia (Meta: ${repData.water?.goal_ml ?? 3000} mL)`,
+          `*Peso Atual:* ${repData.weight?.end ?? '-'} kg (Variação: ${repData.weight?.delta ?? 0} kg)`,
           repData.assessment?.results?.bodyFatPct
-            ? `🧬 *Composição Corporal:* ${repData.assessment.results.bodyFatPct}% de gordura (${repData.assessment.results.leanMassKg} kg de massa magra)`
+            ? `*Composição Corporal:* ${repData.assessment.results.bodyFatPct}% de gordura (${repData.assessment.results.leanMassKg} kg de massa magra)`
             : '',
           '',
           `Continue firme no protocolo! Qualquer dúvida estou à disposição.`,
@@ -269,7 +269,7 @@ export function ReportsAndWhatsappSection({
                 </div>
                 <div>
                   <CardTitle className="font-display text-base">
-                    Programação de Envio do Relatório Profissional — {clientName}
+                    Programação de Envio do Relatório Profissional - {clientName}
                   </CardTitle>
                   <CardDescription className="text-xs">
                     A partir do tempo estipulado abaixo, o sistema compila automaticamente todas as métricas de dieta, treino, água e antropometria e envia para sua caixa de relatórios.
@@ -395,7 +395,7 @@ export function ReportsAndWhatsappSection({
                           {rep.generated_by === 'schedule' ? 'Automático (Ciclo)' : 'Sob Demanda'}
                         </Badge>
                         {!rep.read_at && (
-                          <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold">
+                          <span className="px-1.5 py-0.5 rounded-md bg-amber-500 text-slate-950 text-[10px] font-bold">
                             Novo
                           </span>
                         )}
@@ -526,7 +526,7 @@ export function ReportsAndWhatsappSection({
                         <Scale className="w-3.5 h-3.5" />
                       </div>
                       <strong className="font-display font-extrabold text-2xl text-foreground">
-                        {repData.weight?.end ?? '—'} kg
+                        {repData.weight?.end ?? '-'} kg
                       </strong>
                       <span className="text-[11px] text-emerald-700 font-semibold block">
                         Delta: {repData.weight?.delta > 0 ? `+${repData.weight.delta}` : repData.weight?.delta ?? 0}{' '}
@@ -576,7 +576,7 @@ export function ReportsAndWhatsappSection({
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Relação Cintura-Quadril (RCQ):</span>
-                            <strong>{repData.assessment.results.whr ?? '—'}</strong>
+                            <strong>{repData.assessment.results.whr ?? '-'}</strong>
                           </div>
                         </div>
                       ) : (
@@ -723,7 +723,7 @@ export function ReportsAndWhatsappSection({
                   <SelectContent>
                     {BRAZIL_STATES.map((st) => (
                       <SelectItem key={st.uf} value={st.uf}>
-                        {st.uf} — {st.name}
+                        {st.uf} - {st.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

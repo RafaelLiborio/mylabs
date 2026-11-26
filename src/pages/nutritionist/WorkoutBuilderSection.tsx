@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, getSignedOrPublicUrl, translateErrorPt } from '@/lib/supabase'
+import { sanitizeHttpUrl } from '@/lib/fileValidation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ExercisePreview } from '@/components/shared/ExercisePreview'
 import { MediaAttachmentPicker, type CapturedMediaFile } from '@/components/shared/MediaAttachmentPicker'
@@ -48,7 +49,7 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
   const lastDayKeyRef = useRef<string>('')
 
   // Day metadata form
-  const [dayTitle, setDayTitle] = useState('Treino A — Peitoral, Ombros & Tríceps')
+  const [dayTitle, setDayTitle] = useState('Treino A - Peitoral, Ombros & Tríceps')
   const [dayMuscleGroups, setDayMuscleGroups] = useState<string[]>(['peito', 'ombros', 'triceps'])
 
   // Exercise filter & prescription form (NO load_kg field, and preserves muscleFilter on save!)
@@ -91,7 +92,7 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
         .insert({
           client_id: clientId,
           nutritionist_id: profile.id,
-          name: `Periodização de Treino — ${clientName}`,
+          name: `Periodização de Treino - ${clientName}`,
           weeks: 4,
           notes: 'Treino estruturado por semana, dia e agrupamentos musculares.',
           active: true,
@@ -356,6 +357,12 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
       toast.error('Informe o nome do exercício em português.')
       return
     }
+    const rawGifUrl = customExGifUrl.trim()
+    const safeGifUrl = rawGifUrl ? sanitizeHttpUrl(rawGifUrl) : null
+    if (rawGifUrl && !safeGifUrl) {
+      toast.error('URL da demonstração inválida. Use um endereço HTTPS válido.')
+      return
+    }
     const steps = customExInstructions
       .split('\n')
       .map((s) => s.trim())
@@ -369,8 +376,8 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
         equipment: customExEquipment.trim() || 'Livre',
         level: 'intermediario',
         instructions_pt: steps,
-        gif_url: customExGifUrl.trim() || null,
-        frame_urls: customExGifUrl.trim() ? [customExGifUrl.trim()] : [],
+        gif_url: safeGifUrl,
+        frame_urls: safeGifUrl ? [safeGifUrl] : [],
         owner_id: profile.id,
       })
       .select('id')
@@ -400,7 +407,7 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
               <Badge variant="outline">91+ Exercícios com GIF em Português</Badge>
             </div>
             <CardTitle className="font-display text-lg mt-1">
-              {plan?.name || `Periodização de Treino — ${clientName}`}
+              {plan?.name || `Periodização de Treino - ${clientName}`}
             </CardTitle>
             <CardDescription className="text-xs">
               Separe os treinos por semana e dia da semana, defina os agrupamentos musculares do dia e prescreva exercícios com demonstração animada em português.
@@ -800,7 +807,7 @@ export function WorkoutBuilderSection({ clientId, clientName }: WorkoutBuilderSe
 
                         {we.notes && (
                           <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-2.5 py-1">
-                            💡 {we.notes}
+                            Obs.: {we.notes}
                           </p>
                         )}
                       </div>
